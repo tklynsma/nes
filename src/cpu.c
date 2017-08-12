@@ -1,117 +1,167 @@
 #include <stdio.h>  /* For testing. */
 #include "common.h"
 #include "cpu.h"
+#include "cpu_flags.h"
 #include "memory.h"
 
+/* -----------------------------------------------------------------
+ * CPU status.
+ * -------------------------------------------------------------- */
+
 typedef struct {
-    word pc;    /* Program counter. */
-    byte sp;    /* Stack pointer. */
+    word PC;    /* Program counter. */
+    byte S;     /* Stack pointer. */
     byte A;     /* Accumulator. */
     byte X, Y;  /* Index registers. */
 } CPU;
 
-typedef struct {
-    bool C;     /* Carry flag. */
-    bool Z;     /* Zero flag. */
-    bool I;     /* Interrupt disable. */
-    bool D;     /* Decimal mode flag. */
-    bool B;     /* Break command. */
-    bool V;     /* Overflow flag. */
-    bool N;     /* Negative flag. */
-} Flags;
-
-static CPU cpu;         /* The CPU status. */
-static Flags flags;     /* The CPU flags status. */
-static byte operand;    /* Operand (8 bit) of the instruction. */
-static word address;    /* Operand (16 bit) of the instruction. */
+static CPU cpu;           /* The CPU status. */
+static byte operand;      /* Operand (8 bit) of the instruction. */
+static word address;      /* Operand (16 bit) of the instruction. */
+static int wait_cycles;   /* The number of cycles to wait till the next operation. */
+static int extra_cycles;  /* The number of additional cycles. */
 
 /* -----------------------------------------------------------------
  * CPU addressing modes.
  * -------------------------------------------------------------- */
 
+static inline bool is_diff_page(word address1, word address2) {
+    return (address1 & 0xFF00) != (address2 & 0xFF00);
+}
+
 static inline void absolute(void) {
-    address = mem_read_word(cpu.pc + 1);
+    address = mem_read_word(cpu.PC + 1);
     operand = mem_read_byte(address);
-    cpu.pc += 3;
+    cpu.PC += 3;
 }
 
 static inline void absolute_x(void) {
-    address = mem_read_word(cpu.pc + 1);
-    operand = mem_read_byte(address + cpu.X);
-    cpu.pc += 3;
+    address = mem_read_word(cpu.PC + 1) + cpu.X;
+    operand = mem_read_byte(address);
+    extra_cycles = is_diff_page(address, address - cpu.X);
+    cpu.PC += 3;
 }
 
 static inline void absolute_y(void) {
-    address = mem_read_word(cpu.pc + 1);
-    operand = mem_read_byte(address + cpu.Y);
-    cpu.pc += 3;
+    address = mem_read_word(cpu.PC + 1) + cpu.Y;
+    operand = mem_read_byte(address);
+    extra_cycles = is_diff_page(address, address - cpu.Y);
+    cpu.PC += 3;
 }
 
 static inline void accumulator(void) {
     operand = cpu.A;
-    cpu.pc += 1;
+    cpu.PC += 1;
 }
 
 static inline void immediate(void) {
-    operand = mem_read_byte(cpu.pc + 1);
-    cpu.pc += 2;
+    operand = mem_read_byte(cpu.PC + 1);
+    cpu.PC += 2;
 }
 
 static inline void implied(void) {
-    cpu.pc += 1;
+    cpu.PC += 1;
 }
 
 static inline void indirect(void) {
-    address = mem_read_word(cpu.pc + 1);
+    address = mem_read_word(cpu.PC + 1);
     address = mem_read_word(address);
-    cpu.pc += 3;
+    cpu.PC += 3;
 }
 
 static inline void indirect_x(void) {
-    address = (cpu.pc + cpu.X + 1) & 0xFF;
-    address = mem_read_word(address);
+    address = mem_read_byte(cpu.PC + 1);
+    address = mem_read_word((address + cpu.X) & 0xFF);
     operand = mem_read_byte(address);
-    cpu.pc += 2;
+    cpu.PC += 2;
 }
 
 static inline void indirect_y(void) {
-    /* ... */
+    address = mem_read_byte(cpu.PC + 1);
+    address = mem_read_word(address) + cpu.Y;
+    operand = mem_read_byte(address);
+    extra_cycles = is_diff_page(address, address - cpu.Y);
+    cpu.PC += 2;
 }
 
 static inline void relative(void) {
-    operand = mem_read_byte(cpu.pc + 1);
-    cpu.pc += 2;
+    operand = mem_read_byte(cpu.PC + 1);
+    cpu.PC += 2;
 }
 
 static inline void zero_page(void) {
-    address = mem_read_byte(cpu.pc + 1);
+    address = mem_read_byte(cpu.PC + 1);
     operand = mem_read_byte(address);
-    cpu.pc += 2;
+    cpu.PC += 2;
 }
 
 static inline void zero_page_x(void) {
-    address = mem_read_byte(cpu.pc + 1);
-    operand = mem_read_byte((address + cpu.X) & 0xFF);
-    cpu.pc += 2;
+    address = (mem_read_byte(cpu.PC + 1) + cpu.X) & 0xFF;
+    operand = mem_read_byte(address);
+    cpu.PC += 2;
 }
 
 static inline void zero_page_y(void) {
-    address = mem_read_byte(cpu.pc + 1);
-    operand = mem_read_byte((address + cpu.Y) & 0xFF);
-    cpu.pc += 2;
+    address = (mem_read_byte(cpu.PC + 1) + cpu.Y) & 0xFF;
+    operand = mem_read_byte(address);
+    cpu.PC += 2;
 }
 
 /* -----------------------------------------------------------------
  * CPU instructions.
  * -------------------------------------------------------------- */
 
-/* ADC - Add with Carry. */
-static inline void adc(void) {
-    /* ... */
+/* Branching Instructions. */
+static inline void branch(bool condition) {
+    if (condition) {
+        address = cpu.PC;
+        cpu.PC += (int8_t) operand;
+
+        extra_cycles++;
+        if (is_diff_page(address, cpu.PC)) {
+            extra_cycles++;  /* Page crossed. */
+        }
+    }
 }
 
-/* AND - Logical AND. */
-static inline void and(void) {
+static inline void bcs(void) { branch( flg_is_C()); }
+static inline void bcc(void) { branch(!flg_is_C()); }
+static inline void beq(void) { branch( flg_is_Z()); }
+static inline void bne(void) { branch(!flg_is_Z()); }
+static inline void bvs(void) { branch( flg_is_V()); }
+static inline void bvc(void) { branch(!flg_is_V()); }
+static inline void bmi(void) { branch( flg_is_N()); }
+static inline void bpl(void) { branch(!flg_is_N()); }
+
+/* Flag manipulation. */
+static inline void clc(void) { flg_clear_C(); }
+static inline void cli(void) { flg_clear_I(); }
+static inline void cld(void) { flg_clear_D(); }
+static inline void clv(void) { flg_clear_V(); }
+
+static inline void sec(void) { flg_set_C(); }
+static inline void sei(void) { flg_set_I(); }
+static inline void sed(void) { flg_set_D(); }
+
+/* Store & transfer instructions. */
+static inline void sta(void) { mem_write(address, cpu.A); extra_cycles = 0; }
+static inline void stx(void) { mem_write(address, cpu.X); }
+static inline void sty(void) { mem_write(address, cpu.Y); }
+
+static inline void txs(void) { cpu.S = cpu.X;                       }
+static inline void txa(void) { cpu.A = cpu.X; flg_update_ZN(cpu.A); }
+static inline void tya(void) { cpu.A = cpu.Y; flg_update_ZN(cpu.A); }
+static inline void tax(void) { cpu.X = cpu.A; flg_update_ZN(cpu.X); }
+static inline void tsx(void) { cpu.X = cpu.S; flg_update_ZN(cpu.X); }
+static inline void tay(void) { cpu.Y = cpu.A; flg_update_ZN(cpu.Y); }
+
+/* Bitwise operations. */
+static inline void and(void) { cpu.A &= operand; flg_update_ZN(cpu.A); }
+static inline void eor(void) { cpu.A ^= operand; flg_update_ZN(cpu.A); }
+static inline void ora(void) { cpu.A |= operand; flg_update_ZN(cpu.A); }
+
+/* ADC - Add with Carry. */
+static inline void adc(void) {
     /* ... */
 }
 
@@ -120,74 +170,14 @@ static inline void asl(void) {
     /* ... */
 }
 
-/* BCC - Branch if Carry Clear. */
-static inline void bcc(void) {
-    /* ... */
-}
-
-/* BCS - Branch if Carry Set. */
-static inline void bcs(void) {
-    /* ... */
-}
-
-/* BEQ - Branch if Equal. */
-static inline void beq(void) {
-    /* ... */
-}
-
 /* BIT - Bit Test. */
 static inline void bit(void) {
-    /* ... */
-}
-
-/* BMI - Branch if Minus. */
-static inline void bmi(void) {
-    /* ... */
-}
-
-/* BNE - Branch if Not Equal. */
-static inline void bne(void) {
-    /* ... */
-}
-
-/* BPL - Branch if Positive. */
-static inline void bpl(void) {
     /* ... */
 }
 
 /* BRK - Force Interrupt. */
 static inline void brk(void) {
     /* ... */
-}
-
-/* BVC - Branch if Overflow Clear. */
-static inline void bvc(void) {
-    /* ... */
-}
-
-/* BVS - Branch if Overflow Set. */
-static inline void bvs(void) {
-    /* ... */
-}
-
-/* CLC - Clear Carry Flag. */
-static inline void clc(void) {
-    flags.C = false;
-}
-
-/* CLD - Clear Decimal Mode. */
-static inline void cld(void) {
-    flags.D = false;
-}
-
-/* CLI - Clear Interrupt Disable. */
-static inline void cli(void) {
-    flags.I = false;
-}
-
-/* CLV - Clear Overflow Flag. */
-static inline void clv(void) {
-    flags.V = false;
 }
 
 /* CMP - Compare. */
@@ -205,44 +195,25 @@ static inline void cpy(void) {
     /* ... */
 }
 
-/* DEC - Decrement Memory. */
-static inline void dec(void) {
-    /* ... */
-}
-
-/* DEX - Decrement X Register. */
-static inline void dex(void) {
-    /* ... */
-}
-
-/* DEY - Decrement Y Register. */
-static inline void dey(void) {
-    /* ... */
-}
-
-/* EOR - Exclusive OR. */
-static inline void eor(void) {
-    /* ... */
-}
-
 /* INC - Increment Memory. */
 static inline void inc(void) {
     /* ... */
 }
 
-/* INX - Increment X Register. */
-static inline void inx(void) {
+static inline void inx(void) { cpu.X++; flg_update_ZN(cpu.X); }
+static inline void iny(void) { cpu.Y++; flg_update_ZN(cpu.Y); }
+static inline void dex(void) { cpu.X--; flg_update_ZN(cpu.X); }
+static inline void dey(void) { cpu.Y--; flg_update_ZN(cpu.Y); }
+
+/* DEC - Decrement Memory. */
+static inline void dec(void) {
     /* ... */
 }
 
-/* INY - Increment Y Register. */
-static inline void iny(void) {
-    /* ... */
-}
 
 /* JMP - Jump. */
 static inline void jmp(void) {
-    cpu.pc = address;
+    cpu.PC = address;
 }
 
 /* JSR - Jump to Subroutine. */
@@ -272,11 +243,6 @@ static inline void lsr(void) {
 
 /* NOP - No Operation. */
 static inline void nop(void) {
-    /* ... */
-}
-
-/* ORA - Logical Inclusive OR. */
-static inline void ora(void) {
     /* ... */
 }
 
@@ -322,66 +288,6 @@ static inline void rts(void) {
 
 /* SBC - Subtract with Carry. */
 static inline void sbc(void) {
-    /* ... */
-}
-
-/* SEC - Set Carry Flag. */
-static inline void sec(void) {
-    /* ... */
-}
-
-/* SED - Set Decimal Flag. */
-static inline void sed(void) {
-    /* ... */
-}
-
-/* SEI - Set Interrupt Disable. */
-static inline void sei(void) {
-    /* ... */
-}
-
-/* STA - Store Accumulator. */
-static inline void sta(void) {
-    /* ... */
-}
-
-/* STX - Store X Register. */
-static inline void stx(void) {
-    /* ... */
-}
-
-/* STY - Story Y Register. */
-static inline void sty(void) {
-    /* ... */
-}
-
-/* TAX - Transfer Accumulator to X. */
-static inline void tax(void) {
-    /* ... */
-}
-
-/* TAY - Transfer Accumulator to Y. */
-static inline void tay(void) {
-    /* ... */
-}
-
-/* TSX - Transfer Stack Pointer to X. */
-static inline void tsx(void) {
-    /* ... */
-}
-
-/* TXA - Transfer X to Accumulator. */
-static inline void txa(void) {
-    /* ... */
-}
-
-/* TXS - Transfer X to Stack Pointer. */
-static inline void txs(void) {
-    /* ... */
-}
-
-/* TYA - Transfer Y to Accumulator. */
-static inline void tya(void) {
     /* ... */
 }
 
@@ -675,28 +581,24 @@ static inline void init_instruction_table(void) {
  * CPU iterface.
  * -------------------------------------------------------------- */
 
-static int wait_cycles; /* The number of cycles to wait till the next operation. */
-
 void cpu_reset(void) {
     cpu = (CPU) { 0x0000, 0x00, 0x00, 0x00, 0x00 };
     wait_cycles = 0;
 }
 
 void cpu_init(void) {
-    /* Initialize CPU instructions. */
     init_instruction_table();
-
-    /* Initialize CPU. */
     cpu_reset();
 }
 
 void cpu_cycle(int num_cycles) {
     while (num_cycles > 0) {
         if (wait_cycles == 0) {
-            byte opcode = mem_read_byte(cpu.pc);
+            extra_cycles = 0;
+            byte opcode = mem_read_byte(cpu.PC);
             (*cpu_addressing_table[opcode])();
             (*cpu_instruction_table[opcode])();
-            wait_cycles = cpu_cycles_table[opcode] - 1;
+            wait_cycles = cpu_cycles_table[opcode] + extra_cycles - 1;
         }
         else {
             wait_cycles--;

@@ -10,11 +10,11 @@ void run_tests(char* name, Test test) {
     char *result = (*test)();
 
     if (result != 0) {
-        printf(RED "\nERROR in %s tests: " RESET "%s\n", name, result);
+        printf(RED "\nERROR in %s tests: " RESET "%s (assertion %d).\n", name, result, assertions_run);
     }
     else {
         printf(GREEN "\nAll %s tests passed " RESET \
                "(%d assertions in %d test cases)\n", \
-               name, assertions_run, tests_run);
+               name, assertions_run_total, tests_run);
     }
 }

@@ -1,8 +1,8 @@
 #include "memory.h"
 
-byte memory[MEM_SIZE];
+static byte memory[MEM_SIZE];
 
-void mem_init(void) {
+inline void mem_init(void) {
     for (int i = 0; i < MEM_SIZE; i++) {
         memory[i] = 0x00;
     }
