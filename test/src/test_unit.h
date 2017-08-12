@@ -7,7 +7,7 @@ typedef char *(*Test)(void);
 #define ASSERT(message, test) do { assertions_run_total++; \
     assertions_run++; if (!(test)) return message; } while (0)
 #define RUN_TEST(test) do { assertions_run = 0; char *message = test(); \
-    tests_run++; if (message) return message; else printf("."); } while (0)
+    tests_run++; if (message) return message; } while (0)
 
 int assertions_run;
 int assertions_run_total;

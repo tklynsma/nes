@@ -1,8 +1,8 @@
 #include <stdio.h>  /* For testing. */
-#include "common.h"
-#include "cpu.h"
-#include "cpu_flags.h"
-#include "memory.h"
+#include "../include/common.h"
+#include "../include/cpu.h"
+#include "../include/cpu_flags.h"
+#include "../include/memory.h"
 
 /* -----------------------------------------------------------------
  * CPU status.

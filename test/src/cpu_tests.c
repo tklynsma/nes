@@ -1,8 +1,8 @@
-#include "../src/cpu.c"
-#include "../src/cpu_flags.c"
-#include "../src/memory.c"
+#include "../../src/cpu.c"
+#include "../../src/cpu_flags.c"
+#include "../../src/memory.c"
 #include "cpu_tests.h"
-#include "testunit.h"
+#include "test_unit.h"
 
 /* -----------------------------------------------------------------
  * Help functions for loading instructions.
@@ -22,6 +22,14 @@ static inline void load_absolute(word pc, byte op, byte arg, byte acc) {
     cpu.A = acc;
 }
 
+static inline void load_absolute_addr(word pc, byte op, word address) {
+    cpu_reset();
+    cpu.PC = pc;
+    mem_write(pc, op);
+    mem_write(pc + 1, address & 0xFF);
+    mem_write(pc + 2, address >> 8);
+}
+
 static inline void load_absolute_x(word pc, byte op, byte arg, byte acc) {
     cpu_reset();
     cpu.PC = pc;
@@ -31,6 +39,15 @@ static inline void load_absolute_x(word pc, byte op, byte arg, byte acc) {
     mem_write(0x1234, arg);
     cpu.A = acc;
     cpu.X = 0x34;
+}
+
+static inline void load_absolute_x_addr(word pc, byte op, word address) {
+    cpu_reset();
+    cpu.PC = pc;
+    mem_write(pc, op);
+    mem_write(pc + 1, address & 0xFF);
+    mem_write(pc + 2, address >> 8);
+    cpu.X = 0x00;
 }
 
 static inline void load_absolute_x_page(word pc, byte op, byte arg, byte acc) {
@@ -53,6 +70,15 @@ static inline void load_absolute_y(word pc, byte op, byte arg, byte acc) {
     mem_write(0x1234, arg);
     cpu.A = acc;
     cpu.Y = 0x34;
+}
+
+static inline void load_absolute_y_addr(word pc, byte op, word address) {
+    cpu_reset();
+    cpu.PC = pc;
+    mem_write(pc, op);
+    mem_write(pc + 1, address & 0xFF);
+    mem_write(pc + 2, address >> 8);
+    cpu.Y = 0x00;
 }
 
 static inline void load_absolute_y_page(word pc, byte op, byte arg, byte acc) {
@@ -129,6 +155,13 @@ static inline void load_zero_page(word pc, byte op, byte arg, byte acc) {
     cpu.A = acc;
 }
 
+static inline void load_zero_page_addr(word pc, byte op, word address) {
+    cpu_reset();
+    cpu.PC = pc;
+    mem_write(pc, op);
+    mem_write(pc + 1, address & 0xFF);
+}
+
 static inline void load_zero_page_x(word pc, byte op, byte arg, byte acc) {
     cpu_reset();
     cpu.PC = pc;
@@ -137,6 +170,14 @@ static inline void load_zero_page_x(word pc, byte op, byte arg, byte acc) {
     mem_write(0x00AB, arg);
     cpu.A = acc;
     cpu.X = 0x0B;
+}
+
+static inline void load_zero_page_x_addr(word pc, byte op, word address) {
+    cpu_reset();
+    cpu.PC = pc;
+    mem_write(pc, op);
+    mem_write(pc + 1, address & 0xFF);
+    cpu.X = 0x00;
 }
 
 /* -----------------------------------------------------------------
@@ -280,8 +321,14 @@ static char *test_set(byte opcode, char *msg, Function clear, Bool check) {
     return 0;
 }
 
-static char *test_store(byte opcode, char *msg) {
-    /* ... */
+static char *test_store(byte opcode, int cycles, char *msg, LoadAddress load, byte *store) {
+    (*load)(0x8000, opcode, 0x00AB);
+    *store = 0x77;
+    cpu_cycle(cycles);
+    ASSERT(msg, wait_cycles == 0);
+    ASSERT(msg, mem_read_byte(0x00AB) == 0x77);
+
+    return 0;
 }
 
 static char *test_opcode_29  (void) { return test_and(0x29, 2, "AND, Immediate (0x29)", load_immediate); }
@@ -337,6 +384,12 @@ static char *test_opcode_11_2(void) { return test_ora(0x11, 6, "ORA, Indirect Y 
 static char *test_opcode_38  (void) { return test_set(0x38, "SEC (0x38)", flg_clear_C, flg_is_C); }
 static char *test_opcode_F8  (void) { return test_set(0xF8, "SED (0xF8)", flg_clear_D, flg_is_D); }
 static char *test_opcode_78  (void) { return test_set(0x78, "SEI (0x78)", flg_clear_I, flg_is_I); }
+
+static char *test_opcode_85  (void) { return test_store(0x85, 3, "STA, Zero page (0x85)", load_zero_page_addr, &cpu.A); }
+static char *test_opcode_95  (void) { return test_store(0x95, 4, "STA, Zero page X (0x95)", load_zero_page_x_addr, &cpu.A); }
+static char *test_opcode_8D  (void) { return test_store(0x8D, 4, "STA, Absolute (0x8D)", load_absolute_addr, &cpu.A); }
+static char *test_opcode_9D  (void) { return test_store(0x9D, 5, "STA, Absolute X (0x9D)", load_absolute_x_addr, &cpu.A); }
+static char *test_opcode_99  (void) { return test_store(0x99, 5, "STA, Absolute Y (0x99)", load_absolute_y_addr, &cpu.A); }
 
 /* JMP, Absolute. */
 static char *test_opcode_4C(void) {
@@ -440,6 +493,13 @@ char *cpu_tests(void) {
     RUN_TEST( test_opcode_38 );
     RUN_TEST( test_opcode_F8 );
     RUN_TEST( test_opcode_78 );
+
+    /* Store instructions. */
+    RUN_TEST( test_opcode_85 );
+    RUN_TEST( test_opcode_95 );
+    RUN_TEST( test_opcode_8D );
+    RUN_TEST( test_opcode_9D );
+    RUN_TEST( test_opcode_99 );
 
     return 0;
 }

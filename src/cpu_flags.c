@@ -1,5 +1,5 @@
-#include "common.h"
-#include "cpu_flags.h"
+#include "../include/common.h"
+#include "../include/cpu_flags.h"
 
 static byte result_Z;  /* Last result that affected the Z flag. */
 static byte result_N;  /* Last result that affected the N flag. */

@@ -1,4 +1,4 @@
-#include "memory.h"
+#include "../include/memory.h"
 
 static byte memory[MEM_SIZE];
 
