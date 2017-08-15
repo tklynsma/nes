@@ -22,6 +22,28 @@ static int wait_cycles;   /* The number of cycles to wait till the next operatio
 static int extra_cycles;  /* The number of additional cycles. */
 
 /* -----------------------------------------------------------------
+ * Stack operations.
+ * -------------------------------------------------------------- */
+
+static inline void push(byte data) {
+    mem_write(0x0100 | cpu.S++, data);
+}
+
+static inline void push_address(word data) {
+    mem_write(0x0100 | cpu.S++, data & 0xFF);
+    mem_write(0x0100 | cpu.S++, data >> 8);
+}
+
+static inline byte pop(void) {
+    return mem_read_byte(0x0100 | --cpu.S);
+}
+
+static inline byte pop_address(void) {
+    cpu.S -= 2;
+    return mem_read_word(0x0100 | cpu.S);
+}
+
+/* -----------------------------------------------------------------
  * CPU addressing modes.
  * -------------------------------------------------------------- */
 
@@ -111,7 +133,7 @@ static inline void zero_page_y(void) {
  * CPU instructions.
  * -------------------------------------------------------------- */
 
-/* Branching Instructions. */
+/* Branching instructions. */
 static inline void branch(bool condition) {
     if (condition) {
         address = cpu.PC;
@@ -124,92 +146,163 @@ static inline void branch(bool condition) {
     }
 }
 
-static inline void bcs(void) { branch( flg_is_C()); }
-static inline void bcc(void) { branch(!flg_is_C()); }
-static inline void beq(void) { branch( flg_is_Z()); }
-static inline void bne(void) { branch(!flg_is_Z()); }
-static inline void bvs(void) { branch( flg_is_V()); }
-static inline void bvc(void) { branch(!flg_is_V()); }
-static inline void bmi(void) { branch( flg_is_N()); }
-static inline void bpl(void) { branch(!flg_is_N()); }
-
-/* Flag manipulation. */
-static inline void clc(void) { flg_clear_C(); }
-static inline void cli(void) { flg_clear_I(); }
-static inline void cld(void) { flg_clear_D(); }
-static inline void clv(void) { flg_clear_V(); }
-
-static inline void sec(void) { flg_set_C(); }
-static inline void sei(void) { flg_set_I(); }
-static inline void sed(void) { flg_set_D(); }
-
-/* Store & transfer instructions. */
-static inline void sta(void) { mem_write(address, cpu.A); extra_cycles = 0; }
-static inline void stx(void) { mem_write(address, cpu.X); }
-static inline void sty(void) { mem_write(address, cpu.Y); }
-
-static inline void txs(void) { cpu.S = cpu.X;                       }
-static inline void txa(void) { cpu.A = cpu.X; flg_update_ZN(cpu.A); }
-static inline void tya(void) { cpu.A = cpu.Y; flg_update_ZN(cpu.A); }
-static inline void tax(void) { cpu.X = cpu.A; flg_update_ZN(cpu.X); }
-static inline void tsx(void) { cpu.X = cpu.S; flg_update_ZN(cpu.X); }
-static inline void tay(void) { cpu.Y = cpu.A; flg_update_ZN(cpu.Y); }
-
-/* Bitwise operations. */
-static inline void and(void) { cpu.A &= operand; flg_update_ZN(cpu.A); }
-static inline void eor(void) { cpu.A ^= operand; flg_update_ZN(cpu.A); }
-static inline void ora(void) { cpu.A |= operand; flg_update_ZN(cpu.A); }
-
 /* ADC - Add with Carry. */
 static inline void adc(void) {
-    /* ... */
+    int result = cpu.A + operand + flg_is_C();
+    flg_update_ZN(result);
+    flg_update_C (result, ADC);
+    flg_update_V_adc(cpu.A, operand, result);
+    cpu.A = result & 0xFF;
 }
 
-/* ASL - Arithmetic Shift Left. */
-static inline void asl(void) {
-    /* ... */
+/* AND - Logical AND. */
+static inline void and(void) {
+    flg_update_ZN(cpu.A &= operand);
+}
+
+/* ASL - Arithmetic Shift Left (Accumulator). */
+static inline void asl_a(void) {
+    flg_update_C (cpu.A, ROL);
+    flg_update_ZN(cpu.A <<= 1);
+}
+
+/* ASL - Arithmetic Shift Left (Memory). */
+static inline void asl_m(void) {
+    flg_update_C (cpu.A, ROL);
+    mem_write(address, operand <<= 1);
+    flg_update_ZN(operand);
+}
+
+/* BCC - Branch if Carry Clear. */
+static inline void bcc(void) {
+    branch(!flg_is_C());
+}
+
+/* BCS - Branch if Carry Set. */
+static inline void bcs(void) {
+    branch(flg_is_C());
+}
+
+/* BEQ - Branch if Equal. */
+static inline void beq(void) {
+    branch(flg_is_Z());
 }
 
 /* BIT - Bit Test. */
 static inline void bit(void) {
-    /* ... */
+    byte test = cpu.A & operand;
+    flg_update_ZN(test);
+    flg_update_V_bit(test);
+}
+
+/* BMI - Branch if Minus. */
+static inline void bmi(void) {
+    branch(flg_is_N());
+}
+
+/* BNE - Branch if Not Equal. */
+static inline void bne(void) {
+    branch(!flg_is_Z());
+}
+
+/* BPL - Branch if Positive. */
+static inline void bpl(void) {
+    branch(!flg_is_N());
 }
 
 /* BRK - Force Interrupt. */
 static inline void brk(void) {
-    /* ... */
+    push_address(cpu.PC);
+    push(flg_get_status(true));
+    cpu.PC = mem_read_word(0xFFFE);
+}
+
+/* BVC - Branch if Carry Clear. */
+static inline void bvc(void) {
+    branch(!flg_is_V());
+}
+
+/* BVS - Branch if Carry Set. */
+static inline void bvs(void) {
+    branch(flg_is_V());
+}
+
+/* CLC - Clear Carry Flag. */
+static inline void clc(void) {
+    flg_clear_C();
+}
+
+/* CLD - Clear Decimal Mode. */
+static inline void cld(void) {
+    flg_clear_D();
+}
+
+/* CLI - Clear Interrupt Disable. */
+static inline void cli(void) {
+    flg_clear_I();
+}
+
+/* CLV - Clear Overflow Flag. */
+static inline void clv(void) {
+    flg_clear_V();
 }
 
 /* CMP - Compare. */
 static inline void cmp(void) {
-    /* ... */
+    flg_update_C (cpu.A - operand, CMP);
+    flg_update_ZN(cpu.A - operand);
 }
 
 /* CPX - Compare X Register. */
 static inline void cpx(void) {
-    /* ... */
+    flg_update_C (cpu.X - operand, CMP);
+    flg_update_ZN(cpu.X - operand);
 }
 
 /* CPY - Compare Y Register. */
 static inline void cpy(void) {
-    /* ... */
+    flg_update_C (cpu.Y - operand, CMP);
+    flg_update_ZN(cpu.Y - operand);
+}
+
+/* DEC - Decrement Memory. */
+static inline void dec(void) {
+    mem_write(address, --operand);
+    flg_update_ZN(operand);
+    extra_cycles = 0;
+}
+
+/* DEX - Decrement X Register. */
+static inline void dex(void) {
+    flg_update_ZN(--cpu.X);
+}
+
+/* DEY - Decrement Y Register. */
+static inline void dey(void) {
+    flg_update_ZN(--cpu.Y);
+}
+
+/* EOR - Exclusive OR. */
+static inline void eor(void) {
+    flg_update_ZN(cpu.A ^= operand);
 }
 
 /* INC - Increment Memory. */
 static inline void inc(void) {
-    /* ... */
+    mem_write(address, ++operand);
+    flg_update_ZN(operand);
+    extra_cycles = 0;
 }
 
-static inline void inx(void) { cpu.X++; flg_update_ZN(cpu.X); }
-static inline void iny(void) { cpu.Y++; flg_update_ZN(cpu.Y); }
-static inline void dex(void) { cpu.X--; flg_update_ZN(cpu.X); }
-static inline void dey(void) { cpu.Y--; flg_update_ZN(cpu.Y); }
-
-/* DEC - Decrement Memory. */
-static inline void dec(void) {
-    /* ... */
+/* INX - Increment X Register. */
+static inline void inx(void) {
+    flg_update_ZN(++cpu.X);
 }
 
+/* INY - Increment Y Register. */
+static inline void iny(void) {
+    flg_update_ZN(++cpu.Y);
+}
 
 /* JMP - Jump. */
 static inline void jmp(void) {
@@ -218,77 +311,178 @@ static inline void jmp(void) {
 
 /* JSR - Jump to Subroutine. */
 static inline void jsr(void) {
-    /* ... */
+    push_address(cpu.PC);
+    cpu.PC = address;
 }
 
 /* LDA - Load Accumulator. */
 static inline void lda(void) {
-    /* ... */
+    flg_update_ZN(cpu.A = operand);
 }
 
 /* LDX - Load X Register. */
 static inline void ldx(void) {
-    /* ... */
+    flg_update_ZN(cpu.X = operand);
 }
 
 /* LDY - Load Y Register. */
 static inline void ldy(void) {
-    /* ... */
+    flg_update_ZN(cpu.Y = operand);
 }
 
-/* LSR - Logical Shift Right. */
-static inline void lsr(void) {
-    /* ... */
+/* LSR - Logical Shift Right (Accumulator). */
+static inline void lsr_a(void) {
+    flg_update_C (cpu.A, ROR);
+    flg_update_ZN(cpu.A >>= 1);
+}
+
+/* LSR - Logical Shift Right (Memory). */
+static inline void lsr_m(void) {
+    flg_update_C (operand, ROR);
+    mem_write(address, operand >>= 1);
+    flg_update_ZN(operand);
+    extra_cycles = 0;
 }
 
 /* NOP - No Operation. */
-static inline void nop(void) {
-    /* ... */
+static inline void nop(void) {}
+
+/* ORA - Logical Inclusive OR. */
+static inline void ora(void) {
+    flg_update_ZN(cpu.A |= operand);
 }
 
 /* PHA - Push Accumulator. */
 static inline void pha(void) {
-    /* ... */
+    push(cpu.A);
 }
 
 /* PHP - Push Processor Status. */
 static inline void php(void) {
-    /* ... */
+    push(flg_get_status(true));
 }
 
 /* PLA - Pull Accumulator. */
 static inline void pla(void) {
-    /* ... */
+    cpu.A = pop();
 }
 
 /* PLP - Pull Processor Status. */
 static inline void plp(void) {
-    /* ... */
+    flg_set_status(pop());
 }
 
-/* ROL - Rotate Left. */
-static inline void rol(void) {
-    /* ... */
+/* ROL - Rotate Left (Accumulator). */
+static inline void rol_a(void) {
+    flg_update_C (cpu.A, ROL);
+    cpu.A = (cpu.A << 1) | flg_is_C();
+    flg_update_ZN(cpu.A);
 }
 
-/* ROR - Rotate Right. */
-static inline void ror(void) {
-    /* ... */
+/* ROL - Rotate Left (Memory). */
+static inline void rol_m(void) {
+    flg_update_C (operand, ROL);
+    operand = (operand << 1) | flg_is_C();
+    mem_write(address, operand);
+    flg_update_ZN(operand);
+    extra_cycles = 0;
+}
+
+/* ROR - Rotate Right (Accumulator). */
+static inline void ror_a(void) {
+    flg_update_C (cpu.A, ROR);
+    cpu.A = (cpu.A >> 1) | (flg_is_C() << 7);
+    flg_update_ZN(cpu.A);
+}
+
+/* ROR - Rotate Right (Memory). */
+static inline void ror_m(void) {
+    flg_update_C (operand, ROR);
+    operand = (operand >> 1) | (flg_is_C() << 7);
+    mem_write(address, operand);
+    flg_update_ZN(operand);
+    extra_cycles = 0;
 }
 
 /* RTI - Return from Interrupt. */
 static inline void rti(void) {
-    /* ... */
+    flg_set_status(pop());
+    cpu.PC = pop_address();
 }
 
 /* RTS - Return from Subroutine. */
 static inline void rts(void) {
-    /* ... */
+    cpu.PC = pop_address();
 }
 
 /* SBC - Subtract with Carry. */
 static inline void sbc(void) {
-    /* ... */
+    int result = cpu.A - operand - flg_is_C();
+    flg_update_ZN(result);
+    flg_update_C (result, ADC);
+    flg_update_V_adc(cpu.A, operand, result);
+    cpu.A = result & 0xFF;
+}
+
+/* SEC - Set Carry Flag. */
+static inline void sec(void) {
+    flg_set_C();
+}
+
+/* SED - Set Decimal Flag. */
+static inline void sed(void) {
+    flg_set_D();
+}
+
+/* SEI - Set Interrupt Disable. */
+static inline void sei(void) {
+    flg_set_I();
+}
+
+/* STA - Store Accumulator. */
+static inline void sta(void) {
+    mem_write(address, cpu.A);
+    extra_cycles = 0;
+}
+
+/* STX - Store X Register. */
+static inline void stx(void) {
+    mem_write(address, cpu.X);
+}
+
+/* STY - Store Y Register. */
+static inline void sty(void) {
+    mem_write(address, cpu.Y);
+}
+
+/* TAX - Transfer Accumulator to X. */
+static inline void tax(void) {
+    flg_update_ZN(cpu.X = cpu.A);
+}
+
+/* TAY - Transfer Accumulator to Y. */
+static inline void tay(void) {
+    flg_update_ZN(cpu.Y = cpu.A);
+}
+
+/* TSX - Transfer Stack Pointer to X. */
+static inline void tsx(void) {
+    flg_update_ZN(cpu.X = cpu.S);
+}
+
+/* Transfer X to Accumulator. */
+static inline void txa(void) {
+    flg_update_ZN(cpu.A = cpu.X);
+}
+
+/* TXS - Transfer X to Stack Pointer. */
+static inline void txs(void) {
+    cpu.S = cpu.X;
+}
+
+/* TYA - Transfer Y to Accumulator. */
+static inline void tya(void) {
+    flg_update_ZN(cpu.A = cpu.Y);
 }
 
 /* ----------------------------------------------------------------- */
@@ -334,11 +528,11 @@ static inline void init_instruction_table(void) {
     set_instruction(0x31, 5, and, indirect_y);
 
     /* ASL - Arithmetic Shift Left. */
-    set_instruction(0x0A, 2, asl, accumulator);
-    set_instruction(0x06, 5, asl, zero_page);
-    set_instruction(0x16, 6, asl, zero_page_x);
-    set_instruction(0x0E, 6, asl, absolute);
-    set_instruction(0x1E, 7, asl, absolute_x);
+    set_instruction(0x0A, 2, asl_a, accumulator);
+    set_instruction(0x06, 5, asl_m, zero_page);
+    set_instruction(0x16, 6, asl_m, zero_page_x);
+    set_instruction(0x0E, 6, asl_m, absolute);
+    set_instruction(0x1E, 7, asl_m, absolute_x);
 
     /* BCC - Branch if Carry Clear. */
     set_instruction(0x90, 2, bcc, relative);
@@ -469,11 +663,11 @@ static inline void init_instruction_table(void) {
     set_instruction(0xBC, 4, ldy, absolute_x);
 
     /* LSR - Logical Shift Right. */
-    set_instruction(0x4A, 2, lsr, accumulator);
-    set_instruction(0x46, 5, lsr, zero_page);
-    set_instruction(0x56, 6, lsr, zero_page_x);
-    set_instruction(0x4E, 6, lsr, absolute);
-    set_instruction(0x5E, 7, lsr, absolute_x);
+    set_instruction(0x4A, 2, lsr_a, accumulator);
+    set_instruction(0x46, 5, lsr_m, zero_page);
+    set_instruction(0x56, 6, lsr_m, zero_page_x);
+    set_instruction(0x4E, 6, lsr_m, absolute);
+    set_instruction(0x5E, 7, lsr_m, absolute_x);
 
     /* NOP - No Operation. */
     set_instruction(0xEA, 2, nop, implied);
@@ -501,18 +695,18 @@ static inline void init_instruction_table(void) {
     set_instruction(0x28, 4, plp, implied);
 
     /* ROL - Rotate Left. */
-    set_instruction(0x2A, 2, rol, accumulator);
-    set_instruction(0x26, 5, rol, zero_page);
-    set_instruction(0x36, 6, rol, zero_page_x);
-    set_instruction(0x2E, 6, rol, absolute);
-    set_instruction(0x3E, 7, rol, absolute_x);
+    set_instruction(0x2A, 2, rol_a, accumulator);
+    set_instruction(0x26, 5, rol_m, zero_page);
+    set_instruction(0x36, 6, rol_m, zero_page_x);
+    set_instruction(0x2E, 6, rol_m, absolute);
+    set_instruction(0x3E, 7, rol_m, absolute_x);
 
     /* ROR - Rotate Right. */
-    set_instruction(0x6A, 2, ror, accumulator);
-    set_instruction(0x66, 5, ror, zero_page);
-    set_instruction(0x76, 6, ror, zero_page_x);
-    set_instruction(0x6E, 6, ror, absolute);
-    set_instruction(0x7E, 7, ror, absolute_x);
+    set_instruction(0x6A, 2, ror_a, accumulator);
+    set_instruction(0x66, 5, ror_m, zero_page);
+    set_instruction(0x76, 6, ror_m, zero_page_x);
+    set_instruction(0x6E, 6, ror_m, absolute);
+    set_instruction(0x7E, 7, ror_m, absolute_x);
 
     /* RTI - Return from Interrupt. */
     set_instruction(0x40, 6, rti, implied);
