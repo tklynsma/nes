@@ -38,7 +38,7 @@ static inline byte pop(void) {
     return mem_read_byte(0x0100 | --cpu.S);
 }
 
-static inline byte pop_address(void) {
+static inline word pop_address(void) {
     cpu.S -= 2;
     return mem_read_word(0x0100 | cpu.S);
 }
@@ -151,7 +151,7 @@ static inline void adc(void) {
     int result = cpu.A + operand + flg_is_C();
     flg_update_ZN(result);
     flg_update_C (result, ADC);
-    flg_update_V_adc(cpu.A, operand, result);
+    flg_update_V (result, cpu.A, operand);
     cpu.A = result & 0xFF;
 }
 
@@ -168,9 +168,10 @@ static inline void asl_a(void) {
 
 /* ASL - Arithmetic Shift Left (Memory). */
 static inline void asl_m(void) {
-    flg_update_C (cpu.A, ROL);
+    flg_update_C (operand, ROL);
     mem_write(address, operand <<= 1);
     flg_update_ZN(operand);
+    extra_cycles = 0;
 }
 
 /* BCC - Branch if Carry Clear. */
@@ -212,9 +213,10 @@ static inline void bpl(void) {
 
 /* BRK - Force Interrupt. */
 static inline void brk(void) {
-    push_address(cpu.PC);
+    push_address(cpu.PC + 1);
     push(flg_get_status(true));
     cpu.PC = mem_read_word(0xFFFE);
+    flg_set_I(); /* ??? */
 }
 
 /* BVC - Branch if Carry Clear. */
@@ -417,11 +419,13 @@ static inline void rts(void) {
 
 /* SBC - Subtract with Carry. */
 static inline void sbc(void) {
-    int result = cpu.A - operand - flg_is_C();
+    int result = (int8_t) cpu.A - (int8_t) operand - (int8_t) !flg_is_C();
     flg_update_ZN(result);
-    flg_update_C (result, ADC);
-    flg_update_V_adc(cpu.A, operand, result);
-    cpu.A = result & 0xFF;
+    flg_update_C (result, SBC);
+    byte a = cpu.A   == 0 ? 0xFF : cpu.A;
+    byte b = operand == 0 ? 0xFF : -operand;
+    flg_update_V (result, a, b);
+    cpu.A = result;
 }
 
 /* SEC - Set Carry Flag. */
@@ -778,6 +782,7 @@ static inline void init_instruction_table(void) {
 void cpu_reset(void) {
     cpu = (CPU) { 0x0000, 0x00, 0x00, 0x00, 0x00 };
     wait_cycles = 0;
+    flg_reset();
 }
 
 void cpu_init(void) {

@@ -3,22 +3,22 @@
 
 /* Carry flag (C). */
 
-static byte C1, C2;     /* Last result and operands that affected the C flag. */
-static int C;           /* Last result that affected the C flag. */
-static Operation C_type;   /* Type of the last operation that affected the C flag. */
+static int C;            /* Last result that affected the C flag. */
+static Operation C_type; /* Type of the last operation that affected the C flag. */
 
 inline bool flg_is_C   (void) {
     switch (C_type) {
-        case ADC:   return C & 0x100;
+        case ADC:   return C & 0xF00;
         case CMP:   return !(C & 0x80);
         case ROL:   return C & 0x80;
         case ROR:   return C & 0x01;
+        case SBC:   return !(C & 0xF00);
+        default:    return false;
     }
 }
 
 inline void flg_set_C  (void) { C = 0x80; C_type = ROL; }
 inline void flg_clear_C(void) { C = 0x00; C_type = ROL; }
-
 inline void flg_update_C(int result, Operation type) { C = result; C_type = type; }
 
 /* Zero flag (Z) and negative flag (N). */
@@ -54,8 +54,8 @@ inline void flg_clear_D(void) { D = false; }
 
 /* Overflow flag (V). */
 
-static byte V1, V2, V;      /* Last result and operands that affected the V flag. */
-static Operation V_type;  /* Type of the last operation that affected the V flag. */
+static byte V1, V2, V;   /* Last result and operands that affected the V flag. */
+static Operation V_type; /* Type of the last operation that affected the V flag. */
 
 inline bool flg_is_V(void) {
     return V_type == BIT ? V & 0x40 : ((V ^ V1) & (V ^ V2)) & 0x80;
@@ -64,12 +64,10 @@ inline bool flg_is_V(void) {
 inline void flg_set_V  (void) { V = 0x40; V_type = BIT; }
 inline void flg_clear_V(void) { V = 0x00; V_type = BIT; }
 
-inline void flg_update_V_adc(byte a, byte b, byte s) {
-    V_type = ADC; V = s; V1 = a; V2 = b;
-}
+inline void flg_update_V_bit(byte s) { V_type = BIT; V = s; }
 
-inline void flg_update_V_bit(byte s) {
-    V_type = BIT; V = s;
+inline void flg_update_V(byte s, byte a, byte b) {
+    V_type = ADC; V = s; V1 = a; V2 = b;
 }
 
 /* Get / set processor flag status (P). */
@@ -88,10 +86,21 @@ inline byte flg_get_status(bool B) {
 }
 
 inline void flg_set_status(byte P) {
-    if (P & 0x01) { flg_set_C(); }
-    if (P & 0x02) { flg_set_Z(); }
-    if (P & 0x04) { flg_set_I(); }
-    if (P & 0x08) { flg_set_D(); }
-    if (P & 0x40) { flg_set_V(); }
-    if (P & 0x80) { flg_set_N(); }
+    if (P & 0x01) flg_set_C(); else flg_clear_C();
+    if (P & 0x02) flg_set_Z(); else flg_clear_Z();
+    if (P & 0x04) flg_set_I(); else flg_clear_I();
+    if (P & 0x08) flg_set_D(); else flg_clear_D();
+    if (P & 0x40) flg_set_V(); else flg_clear_V();
+    if (P & 0x80) flg_set_N(); else flg_clear_N();
+}
+
+/* Reset flags. */
+
+inline void flg_reset(void) {
+    flg_clear_C();
+    flg_clear_Z();
+    flg_clear_I();
+    flg_clear_D();
+    flg_clear_V();
+    flg_clear_N();
 }
