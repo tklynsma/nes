@@ -465,9 +465,9 @@ static char *test_op_00_40(void) { /* BRK and RTI. */
     cpu_cycle(7);
     ASSERT("BRK, Implied (0x00)", wait_cycles == 0);
     ASSERT("BRK, Implied (0x00)", cpu.PC == 0x1234);
-    ASSERT("BRK, Implied (0x00)", mem_read_word(0x100) == 0x8002);
-    ASSERT("BRK, Implied (0x00)", mem_read_byte(0x102) == 0x72);
-    ASSERT("BRK, Implied (0x00)", cpu.S == 0x03);
+    ASSERT("BRK, Implied (0x00)", mem_read_word(0x1FE) == 0x8002);
+    ASSERT("BRK, Implied (0x00)", mem_read_byte(0x1FD) == 0x72);
+    ASSERT("BRK, Implied (0x00)", cpu.S == 0xFC);
 
     mem_write(0x1234, 0x40);
     flg_clear_Z();
@@ -477,7 +477,7 @@ static char *test_op_00_40(void) { /* BRK and RTI. */
     cpu_cycle(6);
     ASSERT("RTI, Implied (0x40)", wait_cycles == 0);
     ASSERT("RTI, Implied (0x40)", cpu.PC == 0x8002);
-    ASSERT("RTI, Implied (0x40)", cpu.S == 0x00);
+    ASSERT("RTI, Implied (0x40)", cpu.S == 0xFF);
     ASSERT("RTI, Implied (0x40)", !flg_is_C());
     ASSERT("RTI, Implied (0x40)",  flg_is_Z());
     ASSERT("RTI, Implied (0x40)", !flg_is_I());
@@ -678,15 +678,15 @@ static char *test_op_20_60(void) { /* JSR and RTS. */
     load_absolute_addr(0x8000, 0x20, 0x1234);
     cpu_cycle(6);
     ASSERT("JSR, Absolute (0x20)", wait_cycles == 0);
-    ASSERT("JSR, Absolute (0x20)", mem_read_word(0x100) == 0x8003);
+    ASSERT("JSR, Absolute (0x20)", mem_read_word(0x1FE) == 0x8003);
     ASSERT("JSR, Absolute (0x20)", cpu.PC == 0x1234);
-    ASSERT("JSR, Absolute (0x20)", cpu.S == 0x02);
+    ASSERT("JSR, Absolute (0x20)", cpu.S == 0xFD);
 
     mem_write(0x1234, 0x60);
     cpu_cycle(6);
     ASSERT("RTS, Implied (0x60)", wait_cycles == 0);
     ASSERT("RTS, Implied (0x60)", cpu.PC == 0x8003);
-    ASSERT("RTS, Implied (0x60)", cpu.S == 0x00);
+    ASSERT("RTS, Implied (0x60)", cpu.S == 0xFF);
 
     return 0;
 }
@@ -806,20 +806,18 @@ static char *test_ora(byte opcode, int cycles, char *msg, LoadOperand load) {
 }
 
 static char *test_op_48(void) { /* PHA, Implied. */
-    load_implied(0x8000, 0x48);
-    cpu.A = 0x33;
+    load_accumulator(0x8000, 0x48, 0x33);
     cpu_cycle(3);
     ASSERT("PHA, Implied (0x48)", wait_cycles == 0);
-    ASSERT("PHA, Implied (0x48)", mem_read_byte(0x100) == 0x33);
-    ASSERT("PHA, Implied (0x48)", cpu.S == 0x01);
+    ASSERT("PHA, Implied (0x48)", mem_read_byte(0x1FF) == 0x33);
+    ASSERT("PHA, Implied (0x48)", cpu.S == 0xFE);
 
     /* Wrap around. */
-    load_implied(0x8000, 0x48);
-    cpu.A = 0x44;
-    cpu.S = 0xFF;
+    load_accumulator(0x8000, 0x48, 0x44);
+    cpu.S = 0x00;
     cpu_cycle(3);
-    ASSERT("PHA, Implied (0x48)", mem_read_byte(0x1FF) == 0x44);
-    ASSERT("PHA, Implied (0x48)", cpu.S == 0x00);
+    ASSERT("PHA, Implied (0x48)", mem_read_byte(0x100) == 0x44);
+    ASSERT("PHA, Implied (0x48)", cpu.S == 0xFF);
 
     return 0;
 }
@@ -829,29 +827,29 @@ static char *test_op_08(void) { /* PHP, Implied. */
     load_implied(0x8000, 0x08);
     cpu_cycle(3);
     ASSERT("PHP, Implied (0x08)", wait_cycles == 0);
-    ASSERT("PHP, Implied (0x08)", mem_read_byte(0x100) == 0x30);
-    ASSERT("PHP, Implied (0x08)", cpu.S == 0x01);
+    ASSERT("PHP, Implied (0x08)", mem_read_byte(0x1FF) == 0x30);
+    ASSERT("PHP, Implied (0x08)", cpu.S == 0xFE);
 
     /* Negative and decimal mode flag set. */
     load_implied(0x8000, 0x08);
     flg_set_N();
     flg_set_D();
     cpu_cycle(3);
-    ASSERT("PHP, Implied (0x08)", mem_read_byte(0x100) == 0xB8);
+    ASSERT("PHP, Implied (0x08)", mem_read_byte(0x1FF) == 0xB8);
 
     /* Overflow and interrupt disable set. */
     load_implied(0x8000, 0x08);
     flg_set_V();
     flg_set_I();
     cpu_cycle(3);
-    ASSERT("PHP, Implied (0x08)", mem_read_byte(0x100) == 0x74);
+    ASSERT("PHP, Implied (0x08)", mem_read_byte(0x1FF) == 0x74);
 
     /* Zero and carry flag set. */
     load_implied(0x8000, 0x08);
     flg_set_C();
     flg_set_Z();
     cpu_cycle(3);
-    ASSERT("PHP, Implied (0x08)", mem_read_byte(0x100) == 0x33);
+    ASSERT("PHP, Implied (0x08)", mem_read_byte(0x1FF) == 0x33);
 
     /* All flags set. */
     load_implied(0x8000, 0x08);
@@ -862,27 +860,27 @@ static char *test_op_08(void) { /* PHP, Implied. */
     flg_set_V();
     flg_set_N();
     cpu_cycle(3);
-    ASSERT("PHP, Implied (0x08)", mem_read_byte(0x100) == 0xFF);
+    ASSERT("PHP, Implied (0x08)", mem_read_byte(0x1FF) == 0xFF);
 
     return 0;
 }
 
 static char *test_op_68(void) { /* PLA, Implied. */
     load_implied(0x8000, 0x68);
-    mem_write(0x133, 0x44);
-    cpu.S = 0x34;
+    mem_write(0x134, 0x44);
+    cpu.S = 0x33;
     cpu_cycle(4);
     ASSERT("PLA, Implied (0x68)", wait_cycles == 0);
     ASSERT("PLA, Implied (0x68)", cpu.A == 0x44);
-    ASSERT("PLA, Implied (0x68)", cpu.S == 0x33);
+    ASSERT("PLA, Implied (0x68)", cpu.S == 0x34);
 
     /* Wrap around. */
     load_implied(0x8000, 0x68);
-    mem_write(0x1FF, 0x44);
-    cpu.S = 0x00;
+    mem_write(0x100, 0x44);
+    cpu.S = 0xFF;
     cpu_cycle(4);
     ASSERT("PLA, Implied (0x68)", cpu.A == 0x44);
-    ASSERT("PLA, Implied (0x68)", cpu.S == 0xFF);
+    ASSERT("PLA, Implied (0x68)", cpu.S == 0x00);
 
     return 0;
 }
@@ -890,8 +888,8 @@ static char *test_op_68(void) { /* PLA, Implied. */
 static char *test_op_28(void) { /* PLP, Implied. */
     /* No flags set. */
     load_implied(0x8000, 0x28);
-    mem_write(0x100, 0x00);
-    cpu.S = 0x01;
+    mem_write(0x1FF, 0x00);
+    cpu.S = 0xFE;
     cpu_cycle(4);
     ASSERT("PLP, Implied (0x28)", wait_cycles == 0);
     ASSERT("PLP, Implied (0x28)", !flg_is_C());
@@ -903,8 +901,8 @@ static char *test_op_28(void) { /* PLP, Implied. */
 
     /* Negative and decimal mode flags set. */
     load_implied(0x8000, 0x28);
-    mem_write(0x100, 0x88);
-    cpu.S = 0x01;
+    mem_write(0x1FF, 0x88);
+    cpu.S = 0xFE;
     cpu_cycle(4);
     ASSERT("PLP, Implied (0x28)", !flg_is_C());
     ASSERT("PLP, Implied (0x28)", !flg_is_Z());
@@ -915,8 +913,8 @@ static char *test_op_28(void) { /* PLP, Implied. */
 
     /* Overflow and interrupt disable set. */
     load_implied(0x8000, 0x28);
-    mem_write(0x100, 0x74);
-    cpu.S = 0x01;
+    mem_write(0x1FF, 0x74);
+    cpu.S = 0xFE;
     cpu_cycle(4);
     ASSERT("PLP, Implied (0x28)", !flg_is_C());
     ASSERT("PLP, Implied (0x28)", !flg_is_Z());
@@ -927,8 +925,8 @@ static char *test_op_28(void) { /* PLP, Implied. */
 
     /* Zero and carry flag set. */
     load_implied(0x8000, 0x28);
-    mem_write(0x100, 0x33);
-    cpu.S = 0x01;
+    mem_write(0x1FF, 0x33);
+    cpu.S = 0xFE;
     cpu_cycle(4);
     ASSERT("PLP, Implied (0x28)",  flg_is_C());
     ASSERT("PLP, Implied (0x28)",  flg_is_Z());
@@ -939,8 +937,8 @@ static char *test_op_28(void) { /* PLP, Implied. */
 
     /* All flags set. */
     load_implied(0x8000, 0x28);
-    mem_write(0x100, 0xFF);
-    cpu.S = 0x01;
+    mem_write(0x1FF, 0xFF);
+    cpu.S = 0xFE;
     cpu_cycle(4);
     ASSERT("PLP, Implied (0x28)",  flg_is_C());
     ASSERT("PLP, Implied (0x28)",  flg_is_Z());

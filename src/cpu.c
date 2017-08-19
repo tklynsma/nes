@@ -26,21 +26,22 @@ static int extra_cycles;  /* The number of additional cycles. */
  * -------------------------------------------------------------- */
 
 static inline void push(byte data) {
-    mem_write(0x0100 | cpu.S++, data);
+    mem_write(0x0100 | cpu.S--, data);
 }
 
 static inline void push_address(word data) {
-    mem_write(0x0100 | cpu.S++, data & 0xFF);
-    mem_write(0x0100 | cpu.S++, data >> 8);
+    mem_write(0x0100 | cpu.S--, data >> 8);
+    mem_write(0x0100 | cpu.S--, data & 0xFF);
 }
 
 static inline byte pop(void) {
-    return mem_read_byte(0x0100 | --cpu.S);
+    return mem_read_byte(0x0100 | ++cpu.S);
 }
 
 static inline word pop_address(void) {
-    cpu.S -= 2;
-    return mem_read_word(0x0100 | cpu.S);
+    word result = mem_read_word(0x0100 | ++cpu.S);
+    cpu.S++;
+    return result;
 }
 
 /* -----------------------------------------------------------------
@@ -780,7 +781,7 @@ static inline void init_instruction_table(void) {
  * -------------------------------------------------------------- */
 
 void cpu_reset(void) {
-    cpu = (CPU) { 0x0000, 0x00, 0x00, 0x00, 0x00 };
+    cpu = (CPU) { 0x0000, 0xFF, 0x00, 0x00, 0x00 };
     wait_cycles = 0;
     flg_reset();
 }
