@@ -1,6 +1,6 @@
+#include "../../include/cpu_flags.h"
+#include "../../include/memory.h"
 #include "../../src/cpu.c"
-#include "../../src/cpu_flags.c"
-#include "../../src/memory.c"
 #include "../include/cpu_tests.h"
 #include "../include/test_unit.h"
 

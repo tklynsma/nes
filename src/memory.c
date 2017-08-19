@@ -9,13 +9,31 @@ inline void mem_init(void) {
 }
 
 inline byte mem_read_byte(word address) {
+    if (address >= 0x2000 && address < 0x4000) {
+        return memory[0x2000 + (address % 0x08)];
+    }
     return memory[address];
 }
 
 inline word mem_read_word(word address) {
-    return (memory[address + 1] << 8) | memory[address];
+    return (mem_read_byte(address + 1) << 8) | mem_read_byte(address);
 }
 
 inline void mem_write(word address, byte data) {
-    memory[address] = data;
+    /* 0x0000 - 0x2000 mirrors 0x0000 - 0x07FF. */
+    if (address < 0x2000) {
+        memory[ address % 0x800]           = data;
+        memory[(address % 0x800) + 0x0800] = data;
+        memory[(address % 0x800) + 0x1000] = data;
+        memory[(address % 0x800) + 0x1800] = data;
+    }
+
+    /* 0x2000 - 0x4000 mirrors 0x2000 - 0x2008. */
+    else if (address < 0x4000) {
+        memory[0x2000 + (address % 0x08)] = data;
+    }
+
+    else {
+        memory[address] = data;
+    }
 }
