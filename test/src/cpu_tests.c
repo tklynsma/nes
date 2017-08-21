@@ -665,11 +665,25 @@ static char *test_inx(byte opcode, char *msg, byte *reg) {
     return 0;
 }
 
-static char *test_jmp(byte opcode, int cycles, char *msg, LoadAddress load) {
-    (*load)(0x8000, opcode, 0x1234);
-    cpu_cycle(cycles);
-    ASSERT(msg, wait_cycles == 0);
-    ASSERT(msg, cpu.PC == 0x1234);
+static char *test_op_4C_6C() {
+    load_absolute_addr(0x8000, 0x4C, 0x1234);
+    cpu_cycle(3);
+    ASSERT("JMP, Absolute (0x4C)", wait_cycles == 0);
+    ASSERT("JMP, Absolute (0x4C)", cpu.PC == 0x1234);
+
+    load_absolute_addr(0x8000, 0x6C, 0xC0FE);
+    mem_write(0xC0FE, 0x34);
+    mem_write(0xC0FF, 0x12);
+    cpu_cycle(5);
+    ASSERT("JMP, Indirect (0x6C)", wait_cycles == 0);
+    ASSERT("JMP, Indirect (0x6C)", cpu.PC == 0x1234);
+
+    /* JMP Indirect hardware bug. */
+    load_absolute_addr(0x8000, 0x6C, 0xC0FF);
+    mem_write(0xC0FF, 0x34);
+    mem_write(0xC000, 0x12);
+    cpu_cycle(5);
+    ASSERT("JMP, Indirect (0x6C)", cpu.PC == 0x1234);
 
     return 0;
 }
@@ -1291,9 +1305,6 @@ static char *test_op_FE  (void) { return test_inc(0xFE, 7, "INC, Absolute X (0xF
 static char *test_op_E8  (void) { return test_inx(0xE8,    "INX, Implied (0xE8)",        &cpu.X); }
 static char *test_op_C8  (void) { return test_inx(0xC8,    "INY, Implied (0xC8)",        &cpu.Y); }
 
-static char *test_op_4C  (void) { return test_jmp(0x4C, 3, "JMP, Absolute (0x4C)",       load_absolute_addr); }
-static char *test_op_6C  (void) { return test_jmp(0x6C, 5, "JMP, Indirect (0x6C)",       load_indirect_addr); }
-
 static char *test_op_A9  (void) { return test_lda(0xA9, 2, "LDA, Immediate (0xA9)",      load_immediate, &cpu.A); }
 static char *test_op_A5  (void) { return test_lda(0xA5, 3, "LDA, Zero page (0xA5)",      load_zero_page, &cpu.A); }
 static char *test_op_B5  (void) { return test_lda(0xB5, 4, "LDA, Zero page X (0xB5)",    load_zero_page_x, &cpu.A); }
@@ -1478,8 +1489,7 @@ char *cpu_tests(void) {
     RUN_TEST( test_op_E8 );     /* INX, Implied. */
     RUN_TEST( test_op_C8 );     /* INY, Implied. */
 
-    RUN_TEST( test_op_4C );     /* JMP, Absolute. */
-    RUN_TEST( test_op_6C );     /* JMP, Indirect. */
+    RUN_TEST( test_op_4C_6C );  /* JMP, Absolute and Indirect. */
 
     RUN_TEST( test_op_20_60 );  /* JSR and RTS. */
 

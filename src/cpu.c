@@ -88,8 +88,14 @@ static inline void implied(void) {
 
 static inline void indirect(void) {
     address = mem_read_word(cpu.PC + 1);
-    address = mem_read_word(address);
-    cpu.PC += 3;
+    if (address & 0xFF == 0xFF) {
+        byte lo = mem_read_byte(address);
+        byte hi = mem_read_byte(address - 0xFF);
+        address = (hi << 8) | lo;
+    }
+    else {
+        address = mem_read_word(address);
+    }
 }
 
 static inline void indirect_x(void) {
