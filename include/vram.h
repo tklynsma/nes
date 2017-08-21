@@ -3,7 +3,7 @@
 
 #include "common.h"
 
-#define VRAM_SIZE 65536
+#define VRAM_SIZE 0x3F20
 
 void vrm_init(void);
 byte vrm_read(word address);
