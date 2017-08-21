@@ -8,15 +8,15 @@ inline void mem_init(void) {
     }
 }
 
-inline byte mem_read_byte(word address) {
+inline byte mem_read_8(word address) {
     if (address >= 0x2000 && address < 0x4000) {
         return memory[0x2000 + (address % 0x08)];
     }
     return memory[address];
 }
 
-inline word mem_read_word(word address) {
-    return (mem_read_byte(address + 1) << 8) | mem_read_byte(address);
+inline word mem_read_16(word address) {
+    return (mem_read_8(address + 1) << 8) | mem_read_8(address);
 }
 
 inline void mem_write(word address, byte data) {
