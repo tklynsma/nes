@@ -2,8 +2,6 @@
 #include "../include/memory_tests.h"
 #include "../include/test_unit.h"
 
-#include <stdio.h>
-
 char *test_mirror_0000_2000(void) {
     mem_init();
 

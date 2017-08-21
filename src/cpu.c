@@ -217,7 +217,7 @@ static inline void brk(void) {
     push_address(cpu.PC + 1);
     push(flg_get_status(true));
     cpu.PC = mem_read_word(0xFFFE);
-    flg_set_I(); /* ??? */
+    flg_set_I();
 }
 
 /* BVC - Branch if Carry Clear. */
@@ -798,11 +798,10 @@ void cpu_cycle(int num_cycles) {
             byte opcode = mem_read_byte(cpu.PC);
             (*cpu_addressing_table[opcode])();
             (*cpu_instruction_table[opcode])();
-            wait_cycles = cpu_cycles_table[opcode] + extra_cycles - 1;
+            wait_cycles = cpu_cycles_table[opcode] + extra_cycles;
         }
-        else {
-            wait_cycles--;
-        }
+
+        wait_cycles--;
         num_cycles--;
     }
 }
