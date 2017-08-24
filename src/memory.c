@@ -1,4 +1,6 @@
+#include "../include/cpu.h"
 #include "../include/memory.h"
+#include "../include/ppu.h"
 
 static byte memory[MEM_SIZE];
 
@@ -9,10 +11,18 @@ inline void mem_init(void) {
 }
 
 inline byte mem_read_8(word address) {
-    if (address >= 0x2000 && address < 0x4000) {
-        return memory[0x2000 + (address % 0x08)];
+    if (address < 0x2000) {             /* 0x0000 - 0x1FFF */
+        return cpu_ram_read(address);
     }
-    return memory[address];
+    else if (address < 0x4000) {        /* 0x2000 - 0x3FFF */
+        return ppu_io_read(address);
+    }
+    else if (address == 0x4014) {       /* 0x4014: OAM DMA */
+        return ppu_io_read(address);
+    }
+    else {                              /* TODO */
+        return memory[address];
+    }
 }
 
 inline word mem_read_16(word address) {
@@ -20,20 +30,16 @@ inline word mem_read_16(word address) {
 }
 
 inline void mem_write(word address, byte data) {
-    /* 0x0000 - 0x2000 mirrors 0x0000 - 0x07FF. */
-    if (address < 0x2000) {
-        memory[ address % 0x800]           = data;
-        memory[(address % 0x800) + 0x0800] = data;
-        memory[(address % 0x800) + 0x1000] = data;
-        memory[(address % 0x800) + 0x1800] = data;
+    if (address < 0x2000) {             /* 0x0000 - 0x1FFF */
+        cpu_ram_write(address, data);
     }
-
-    /* 0x2000 - 0x4000 mirrors 0x2000 - 0x2008. */
-    else if (address < 0x4000) {
-        memory[0x2000 + (address % 0x08)] = data;
+    else if (address < 0x4000) {        /* 0x2000 - 0x3FFF */
+        ppu_io_write(address, data);
     }
-
-    else {
+    else if (address == 0x4014) {       /* 0x4014: OAM DMA */
+        ppu_io_write(address, data);
+    }
+    else {                              /* TODO */
         memory[address] = data;
     }
 }

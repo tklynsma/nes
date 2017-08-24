@@ -20,25 +20,8 @@ char *test_mirror_0000_2000(void) {
     return 0;
 }
 
-char *test_mirror_2000_4000(void) {
-    mem_init();
-
-    mem_write(0x2000, 0x55);
-    for (int i = 0; i < 1024; i++) {
-        ASSERT("Mirror 0x2000-0x4000", mem_read_8(0x2000 + i * 0x08) == 0x55);
-    }
-
-    mem_write(0x3004, 0x44);
-    for (int i = 0; i < 1024; i++) {
-        ASSERT("Mirror 0x2000-0x4000", mem_read_8(0x2004 + i * 0x08) == 0x44);
-    }
-
-    return 0;
-}
-
 char *mem_tests(void) {
     RUN_TEST( test_mirror_0000_2000 );
-    RUN_TEST( test_mirror_2000_4000 );
 
     return 0;
 }

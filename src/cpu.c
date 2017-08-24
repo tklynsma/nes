@@ -1,4 +1,3 @@
-#include <stdio.h>  /* For testing. */
 #include "../include/common.h"
 #include "../include/cpu.h"
 #include "../include/cpu_flags.h"
@@ -9,39 +8,40 @@
  * -------------------------------------------------------------- */
 
 typedef struct {
-    word PC;    /* Program counter. */
-    byte S;     /* Stack pointer. */
-    byte A;     /* Accumulator. */
-    byte X, Y;  /* Index registers. */
+    word PC;             /* Program counter. */
+    byte S;              /* Stack pointer. */
+    byte A;              /* Accumulator. */
+    byte X, Y;           /* Index registers. */
+    byte ram[RAM_SIZE];  /* The CPU's RAM. */
 } CPU;
 
-static CPU cpu;           /* The CPU status. */
-static byte operand;      /* Operand (8 bit) of the instruction. */
-static word address;      /* Operand (16 bit) of the instruction. */
-static int wait_cycles;   /* The number of cycles to wait till the next operation. */
-static int extra_cycles;  /* The number of additional cycles. */
+static CPU cpu;          /* The CPU status. */
+static byte operand;     /* Operand (8 bit) of the instruction. */
+static word address;     /* Operand (16 bit) of the instruction. */
+static int wait_cycles;  /* The number of cycles to wait till the next operation. */
+static int extra_cycles; /* The number of additional cycles. */
 
 /* -----------------------------------------------------------------
  * Stack operations.
  * -------------------------------------------------------------- */
 
 static inline void push(byte data) {
-    mem_write(0x0100 | cpu.S--, data);
+    cpu.ram[0x100 | cpu.S--] = data;
 }
 
-static inline void push_address(word data) {
-    mem_write(0x0100 | cpu.S--, data >> 8);
-    mem_write(0x0100 | cpu.S--, data & 0xFF);
+static inline void push_address(word address) {
+    cpu.ram[0x100 | cpu.S--] = address >> 8;
+    cpu.ram[0x100 | cpu.S--] = address & 0xFF;
 }
 
 static inline byte pop(void) {
-    return mem_read_8(0x0100 | ++cpu.S);
+    return cpu.ram[0x100 | ++cpu.S];
 }
 
 static inline word pop_address(void) {
-    word result = mem_read_16(0x0100 | ++cpu.S);
-    cpu.S++;
-    return result;
+    byte lo = cpu.ram[0x100 | ++cpu.S];
+    byte hi = cpu.ram[0x100 | ++cpu.S];
+    return (hi << 8) | lo;
 }
 
 /* -----------------------------------------------------------------
@@ -96,13 +96,17 @@ static inline void indirect(void) {
 
 static inline void indirect_x(void) {
     address = mem_read_8 (cpu.PC + 1);
-    address = mem_read_16((address + cpu.X) & 0xFF);
+    byte lo = cpu.ram[(address + cpu.X) & 0xFF];
+    byte hi = cpu.ram[(address + cpu.X + 1) & 0xFF];
+    address = (hi << 8) | lo;
     cpu.PC += 2;
 }
 
 static inline void indirect_y(void) {
     address = mem_read_8 (cpu.PC + 1);
-    address = mem_read_16(address) + cpu.Y;
+    byte lo = cpu.ram[address];
+    byte hi = cpu.ram[(address + 1) & 0xFF];
+    address = ((hi << 8) | lo) + cpu.Y;
     extra_cycles = is_diff_page(address, address - cpu.Y);
     cpu.PC += 2;
 }
@@ -805,6 +809,10 @@ void cpu_reset(void) {
 void cpu_init(void) {
     init_instruction_table();
     cpu_reset();
+
+    for (int i = 0; i < RAM_SIZE; i++) {
+        cpu.ram[i] = 0x00;
+    }
 }
 
 void cpu_cycle(int num_cycles) {
@@ -820,4 +828,12 @@ void cpu_cycle(int num_cycles) {
         wait_cycles--;
         num_cycles--;
     }
+}
+
+inline byte cpu_ram_read(word address) {
+    return cpu.ram[address % RAM_SIZE];
+}
+
+inline void cpu_ram_write(word address, byte data) {
+    cpu.ram[address % RAM_SIZE] = data;
 }
