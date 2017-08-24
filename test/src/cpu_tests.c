@@ -8,6 +8,8 @@
  * Help functions for loading instructions.
  * -------------------------------------------------------------- */
 
+static const word INSTRUCTION_ADDRESS = 0x0200;
+
 typedef bool (*Bool)(void);
 typedef void (*LoadOperand)(word, byte, byte, byte);
 typedef void (*LoadAddress)(word, byte, word);
@@ -234,7 +236,7 @@ static inline void load_zero_page_y(word pc, byte op, byte arg, byte acc) {
 
 static char *test_adc(byte opcode, int cycles, char *msg, LoadOperand load) {
     /* No flags set, add with carry. */
-    (*load)(0x8000, opcode, 0x0F, 0x05);
+    (*load)(INSTRUCTION_ADDRESS, opcode, 0x0F, 0x05);
     flg_set_C();
     cpu_cycle(cycles);
     ASSERT(msg, wait_cycles == 0);
@@ -245,7 +247,7 @@ static char *test_adc(byte opcode, int cycles, char *msg, LoadOperand load) {
     ASSERT(msg, !flg_is_N());
 
     /* Zero and carry flag set, add without carry. */
-    (*load)(0x8000, opcode, 0xFF, 0x01);
+    (*load)(INSTRUCTION_ADDRESS, opcode, 0xFF, 0x01);
     flg_clear_C();
     cpu_cycle(cycles);
     ASSERT(msg, cpu.A == 0x00);
@@ -255,7 +257,7 @@ static char *test_adc(byte opcode, int cycles, char *msg, LoadOperand load) {
     ASSERT(msg, !flg_is_N());
 
     /* Zero and carry flag set, add with carry. */
-    (*load)(0x8000, opcode, 0xFF, 0x00);
+    (*load)(INSTRUCTION_ADDRESS, opcode, 0xFF, 0x00);
     flg_set_C();
     cpu_cycle(cycles);
     ASSERT(msg, cpu.A == 0x00);
@@ -265,7 +267,7 @@ static char *test_adc(byte opcode, int cycles, char *msg, LoadOperand load) {
     ASSERT(msg, !flg_is_N());
 
     /* Negative and overflow flag set, add without carry. */
-    (*load)(0x8000, opcode, 0x40, 0x40);
+    (*load)(INSTRUCTION_ADDRESS, opcode, 0x40, 0x40);
     flg_clear_C();
     cpu_cycle(cycles);
     ASSERT(msg, cpu.A == 0x80);
@@ -275,7 +277,7 @@ static char *test_adc(byte opcode, int cycles, char *msg, LoadOperand load) {
     ASSERT(msg,  flg_is_N());
 
     /* Carry and overflow flag set, add with carry. */
-    (*load)(0x8000, opcode, 0x80, 0x80);
+    (*load)(INSTRUCTION_ADDRESS, opcode, 0x80, 0x80);
     flg_set_C();
     cpu_cycle(cycles);
     ASSERT(msg, cpu.A == 0x01);
@@ -285,7 +287,7 @@ static char *test_adc(byte opcode, int cycles, char *msg, LoadOperand load) {
     ASSERT(msg, !flg_is_N());
 
     /* Overflow caused by carry. */
-    (*load)(0x8000, opcode, 0x00, 0x7F);
+    (*load)(INSTRUCTION_ADDRESS, opcode, 0x00, 0x7F);
     flg_set_C();
     cpu_cycle(cycles);
     ASSERT(msg, cpu.A == 0x80);
@@ -299,7 +301,7 @@ static char *test_adc(byte opcode, int cycles, char *msg, LoadOperand load) {
 
 static char *test_and(byte opcode, int cycles, char *msg, LoadOperand load) {
     /* No flags set. */
-    (*load)(0x8000, opcode, 0x77, 0xBB);
+    (*load)(INSTRUCTION_ADDRESS, opcode, 0x77, 0xBB);
     cpu_cycle(cycles);
     ASSERT(msg, wait_cycles == 0);
     ASSERT(msg, cpu.A == 0x33);
@@ -307,14 +309,14 @@ static char *test_and(byte opcode, int cycles, char *msg, LoadOperand load) {
     ASSERT(msg, !flg_is_N());
 
     /* Zero flag set. */
-    (*load)(0x8000, opcode, 0x88, 0x33);
+    (*load)(INSTRUCTION_ADDRESS, opcode, 0x88, 0x33);
     cpu_cycle(cycles);
     ASSERT(msg, cpu.A == 0x00);
     ASSERT(msg, flg_is_Z());
     ASSERT(msg, !flg_is_N());
 
     /* Negative flag set. */
-    (*load)(0x8000, opcode, 0xBB, 0xFF);
+    (*load)(INSTRUCTION_ADDRESS, opcode, 0xBB, 0xFF);
     cpu_cycle(cycles);
     ASSERT(msg, cpu.A == 0xBB);
     ASSERT(msg, !flg_is_Z());
@@ -325,7 +327,7 @@ static char *test_and(byte opcode, int cycles, char *msg, LoadOperand load) {
 
 static char *test_op_0A(void) { /* ASL, Accumulator. */
     /* No flags set. */
-    load_accumulator(0x8000, 0x0A, 0x03);
+    load_accumulator(INSTRUCTION_ADDRESS, 0x0A, 0x03);
     cpu_cycle(2);
     ASSERT("ASL, Accumulator (0x0A)", wait_cycles == 0);
     ASSERT("ASL, Accumulator (0x0A)", cpu.A == 0x06);
@@ -334,7 +336,7 @@ static char *test_op_0A(void) { /* ASL, Accumulator. */
     ASSERT("ASL, Accumulator (0x0A)", !flg_is_N());
 
     /* Carry and zero flag set. */
-    load_accumulator(0x8000, 0x0A, 0x80);
+    load_accumulator(INSTRUCTION_ADDRESS, 0x0A, 0x80);
     cpu_cycle(2);
     ASSERT("ASL, Accumulator (0x0A)", cpu.A == 0x00);
     ASSERT("ASL, Accumulator (0x0A)",  flg_is_C());
@@ -342,7 +344,7 @@ static char *test_op_0A(void) { /* ASL, Accumulator. */
     ASSERT("ASL, Accumulator (0x0A)", !flg_is_N());
 
     /* Negative flag set. */
-    load_accumulator(0x8000, 0x0A, 0x7F);
+    load_accumulator(INSTRUCTION_ADDRESS, 0x0A, 0x7F);
     cpu_cycle(2);
     ASSERT("ASL, Accumulator (0x0A)", cpu.A == 0xFE);
     ASSERT("ASL, Accumulator (0x0A)", !flg_is_C());
@@ -354,7 +356,7 @@ static char *test_op_0A(void) { /* ASL, Accumulator. */
 
 static char *test_asl(byte opcode, int cycles, char *msg, LoadAddress load) {
     /* No flags set. */
-    (*load)(0x8000, opcode, 0x00AB);
+    (*load)(INSTRUCTION_ADDRESS, opcode, 0x00AB);
     mem_write(0x00AB, 0x03);
     cpu_cycle(cycles);
     ASSERT(msg, wait_cycles == 0);
@@ -364,7 +366,7 @@ static char *test_asl(byte opcode, int cycles, char *msg, LoadAddress load) {
     ASSERT(msg, !flg_is_N());
 
     /* Carry and zero flag set. */
-    (*load)(0x8000, opcode, 0x00AB);
+    (*load)(INSTRUCTION_ADDRESS, opcode, 0x00AB);
     mem_write(0x00AB, 0x80);
     cpu_cycle(cycles);
     ASSERT(msg, mem_read_8(0x00AB) == 0x00);
@@ -373,7 +375,7 @@ static char *test_asl(byte opcode, int cycles, char *msg, LoadAddress load) {
     ASSERT(msg, !flg_is_N());
 
     /* Negative flag set. */
-    (*load)(0x8000, opcode, 0x00AB);
+    (*load)(INSTRUCTION_ADDRESS, opcode, 0x00AB);
     mem_write(0x00AB, 0x7F);
     cpu_cycle(cycles);
     ASSERT(msg, mem_read_8(0x00AB) == 0xFE);
@@ -386,46 +388,46 @@ static char *test_asl(byte opcode, int cycles, char *msg, LoadAddress load) {
 
 static char *test_brc(byte opcode, char *msg, Function set, Function clear) {
     /* Branching fails. */
-    load_relative(0x8000, opcode, 0x75);
+    load_relative(INSTRUCTION_ADDRESS, opcode, 0x75);
     (*clear)();
     cpu_cycle(2);
     ASSERT(msg, wait_cycles == 0);
-    ASSERT(msg, cpu.PC == 0x8002);
+    ASSERT(msg, cpu.PC == INSTRUCTION_ADDRESS + 2);
 
     /* Branching succeeds, positive offset, no page crossed. */
-    load_relative(0x80FE, opcode, 0x77);
+    load_relative(INSTRUCTION_ADDRESS + 0xFE, opcode, 0x77);
     (*set)();
     cpu_cycle(3);
     ASSERT(msg, wait_cycles == 0);
-    ASSERT(msg, cpu.PC == 0x8177);
+    ASSERT(msg, cpu.PC == INSTRUCTION_ADDRESS + 0x177);
 
     /* Branching succeeds, negative offset, no page crossed. */
-    load_relative(0x8075, opcode, 0x89);
+    load_relative(INSTRUCTION_ADDRESS + 0x75, opcode, 0x89);
     (*set)();
     cpu_cycle(3);
     ASSERT(msg, wait_cycles == 0);
-    ASSERT(msg, cpu.PC == 0x8000);
+    ASSERT(msg, cpu.PC == INSTRUCTION_ADDRESS);
 
     /* Branching succeeds, positive offset, page crossed. */
-    load_relative(0x80FD, opcode, 0x01);
+    load_relative(INSTRUCTION_ADDRESS + 0xFD, opcode, 0x01);
     (*set)();
     cpu_cycle(4);
     ASSERT(msg, wait_cycles == 0);
-    ASSERT(msg, cpu.PC == 0x8100);
+    ASSERT(msg, cpu.PC == INSTRUCTION_ADDRESS + 0x100);
 
     /* Branching succeeds, negative offset, page crossed. */
-    load_relative(0x8000, opcode, 0xFD);
+    load_relative(INSTRUCTION_ADDRESS, opcode, 0xFD);
     (*set)();
     cpu_cycle(4);
     ASSERT(msg, wait_cycles == 0);
-    ASSERT(msg, cpu.PC == 0x7FFF);
+    ASSERT(msg, cpu.PC == INSTRUCTION_ADDRESS - 1);
 
     return 0;
 }
 
 static char *test_bit(byte opcode, int cycles, char *msg, LoadOperand load) {
     /* No flags set. */
-    (*load)(0x8000, opcode, 0xFF, 0x03);
+    (*load)(INSTRUCTION_ADDRESS, opcode, 0xFF, 0x03);
     cpu_cycle(cycles);
     ASSERT(msg, wait_cycles == 0);
     ASSERT(msg, !flg_is_Z());
@@ -433,21 +435,21 @@ static char *test_bit(byte opcode, int cycles, char *msg, LoadOperand load) {
     ASSERT(msg, !flg_is_N());
 
     /* Zero flag set. */
-    (*load)(0x8000, opcode, 0x71, 0x88);
+    (*load)(INSTRUCTION_ADDRESS, opcode, 0x71, 0x88);
     cpu_cycle(cycles);
     ASSERT(msg,  flg_is_Z());
     ASSERT(msg, !flg_is_V());
     ASSERT(msg, !flg_is_N());
 
     /* Overflow flag set. */
-    (*load)(0x8000, opcode, 0x71, 0x40);
+    (*load)(INSTRUCTION_ADDRESS, opcode, 0x71, 0x40);
     cpu_cycle(cycles);
     ASSERT(msg, !flg_is_Z());
     ASSERT(msg,  flg_is_V());
     ASSERT(msg, !flg_is_N());
 
     /* Negative flag set. */
-    (*load)(0x8000, opcode, 0xAA, 0x80);
+    (*load)(INSTRUCTION_ADDRESS, opcode, 0xAA, 0x80);
     cpu_cycle(cycles);
     ASSERT(msg, !flg_is_Z());
     ASSERT(msg, !flg_is_V());
@@ -457,7 +459,7 @@ static char *test_bit(byte opcode, int cycles, char *msg, LoadOperand load) {
 }
 
 static char *test_op_00_40(void) { /* BRK and RTI. */
-    load_implied(0x8000, 0x00);
+    load_implied(INSTRUCTION_ADDRESS, 0x00);
     mem_write(0xFFFE, 0x34);
     mem_write(0xFFFF, 0x12);
     flg_set_V();
@@ -465,7 +467,7 @@ static char *test_op_00_40(void) { /* BRK and RTI. */
     cpu_cycle(7);
     ASSERT("BRK, Implied (0x00)", wait_cycles == 0);
     ASSERT("BRK, Implied (0x00)", cpu.PC == 0x1234);
-    ASSERT("BRK, Implied (0x00)", mem_read_16(0x1FE) == 0x8002);
+    ASSERT("BRK, Implied (0x00)", mem_read_16(0x1FE) == INSTRUCTION_ADDRESS + 2);
     ASSERT("BRK, Implied (0x00)", mem_read_8 (0x1FD) == 0x72);
     ASSERT("BRK, Implied (0x00)", cpu.S == 0xFC);
 
@@ -476,7 +478,7 @@ static char *test_op_00_40(void) { /* BRK and RTI. */
     flg_set_N();
     cpu_cycle(6);
     ASSERT("RTI, Implied (0x40)", wait_cycles == 0);
-    ASSERT("RTI, Implied (0x40)", cpu.PC == 0x8002);
+    ASSERT("RTI, Implied (0x40)", cpu.PC == INSTRUCTION_ADDRESS + 2);
     ASSERT("RTI, Implied (0x40)", cpu.S == 0xFF);
     ASSERT("RTI, Implied (0x40)", !flg_is_C());
     ASSERT("RTI, Implied (0x40)",  flg_is_Z());
@@ -489,7 +491,7 @@ static char *test_op_00_40(void) { /* BRK and RTI. */
 }
 
 static char *test_clr(byte opcode, char *msg, Function set, Bool check) {
-    load_implied(0x8000, opcode);
+    load_implied(INSTRUCTION_ADDRESS, opcode);
     (*set)();
     cpu_cycle(2);
     ASSERT(msg, wait_cycles == 0);
@@ -500,7 +502,7 @@ static char *test_clr(byte opcode, char *msg, Function set, Bool check) {
 
 static char *test_cmp(byte opcode, int cycles, char *msg, LoadOperand load, byte *reg) {
     /* Carry flag set. */
-    (*load)(0x8000, opcode, 0x76, 0x77);
+    (*load)(INSTRUCTION_ADDRESS, opcode, 0x76, 0x77);
     *reg = 0x77;
     cpu_cycle(cycles);
     ASSERT(msg, wait_cycles == 0);
@@ -509,7 +511,7 @@ static char *test_cmp(byte opcode, int cycles, char *msg, LoadOperand load, byte
     ASSERT(msg, !flg_is_N());
 
     /* Zero and carry flag set. */
-    (*load)(0x8000, opcode, 0xAB, 0xAB);
+    (*load)(INSTRUCTION_ADDRESS, opcode, 0xAB, 0xAB);
     *reg = 0xAB;
     cpu_cycle(cycles);
     ASSERT(msg,  flg_is_C());
@@ -517,7 +519,7 @@ static char *test_cmp(byte opcode, int cycles, char *msg, LoadOperand load, byte
     ASSERT(msg, !flg_is_N());
 
     /* Negative flag set. */
-    (*load)(0x8000, opcode, 0x77, 0x76);
+    (*load)(INSTRUCTION_ADDRESS, opcode, 0x77, 0x76);
     *reg = 0x76;
     cpu_cycle(cycles);
     ASSERT(msg, !flg_is_C());
@@ -528,7 +530,7 @@ static char *test_cmp(byte opcode, int cycles, char *msg, LoadOperand load, byte
 }
 
 static char *test_dec(byte opcode, int cycles, char *msg, LoadAddress load) {
-    (*load)(0x8000, opcode, 0x00AB);
+    (*load)(INSTRUCTION_ADDRESS, opcode, 0x00AB);
     mem_write(0x00AB, 0x77);
     cpu_cycle(cycles);
     ASSERT(msg, wait_cycles == 0);
@@ -537,7 +539,7 @@ static char *test_dec(byte opcode, int cycles, char *msg, LoadAddress load) {
     ASSERT(msg, !flg_is_N());
 
     /* Flag Z is set. */
-    (*load)(0x8000, opcode, 0x00AB);
+    (*load)(INSTRUCTION_ADDRESS, opcode, 0x00AB);
     mem_write(0x00AB, 0x01);
     cpu_cycle(cycles);
     ASSERT(msg, mem_read_8(0x00AB) == 0x00);
@@ -545,7 +547,7 @@ static char *test_dec(byte opcode, int cycles, char *msg, LoadAddress load) {
     ASSERT(msg, !flg_is_N());
 
     /* Flag N is set. */
-    (*load)(0x8000, opcode, 0x00AB);
+    (*load)(INSTRUCTION_ADDRESS, opcode, 0x00AB);
     mem_write(0x00AB, 0x00);
     cpu_cycle(cycles);
     ASSERT(msg, mem_read_8(0x00AB) == 0xFF);
@@ -556,7 +558,7 @@ static char *test_dec(byte opcode, int cycles, char *msg, LoadAddress load) {
 }
 
 static char *test_dex(byte opcode, char *msg, byte *reg) {
-    load_implied(0x8000, opcode);
+    load_implied(INSTRUCTION_ADDRESS, opcode);
     *reg = 0x77;
     cpu_cycle(2);
     ASSERT(msg, wait_cycles == 0);
@@ -565,7 +567,7 @@ static char *test_dex(byte opcode, char *msg, byte *reg) {
     ASSERT(msg, !flg_is_N());
 
     /* Flag Z is set. */
-    load_implied(0x8000, opcode);
+    load_implied(INSTRUCTION_ADDRESS, opcode);
     *reg = 0x01;
     cpu_cycle(2);
     ASSERT(msg, *reg == 0x00);
@@ -573,7 +575,7 @@ static char *test_dex(byte opcode, char *msg, byte *reg) {
     ASSERT(msg, !flg_is_N());
 
     /* Flag N is set. */
-    load_implied(0x8000, opcode);
+    load_implied(INSTRUCTION_ADDRESS, opcode);
     *reg = 0x00;
     cpu_cycle(2);
     ASSERT(msg, *reg == 0xFF);
@@ -585,7 +587,7 @@ static char *test_dex(byte opcode, char *msg, byte *reg) {
 
 static char *test_eor(byte opcode, int cycles, char *msg, LoadOperand load) {
     /* No flags set. */
-    (*load)(0x8000, opcode, 0x03, 0x09);
+    (*load)(INSTRUCTION_ADDRESS, opcode, 0x03, 0x09);
     cpu_cycle(cycles);
     ASSERT(msg, wait_cycles == 0);
     ASSERT(msg, cpu.A == 0x0A);
@@ -593,14 +595,14 @@ static char *test_eor(byte opcode, int cycles, char *msg, LoadOperand load) {
     ASSERT(msg, !flg_is_N());
 
     /* Flag Z is set. */
-    (*load)(0x8000, opcode, 0x77, 0x77);
+    (*load)(INSTRUCTION_ADDRESS, opcode, 0x77, 0x77);
     cpu_cycle(cycles);
     ASSERT(msg, cpu.A == 0x00);
     ASSERT(msg, flg_is_Z());
     ASSERT(msg, !flg_is_N());
 
     /* Flag N is set. */
-    (*load)(0x8000, opcode, 0x80, 0x7F);
+    (*load)(INSTRUCTION_ADDRESS, opcode, 0x80, 0x7F);
     cpu_cycle(cycles);
     ASSERT(msg, cpu.A == 0xFF);
     ASSERT(msg, !flg_is_Z());
@@ -610,7 +612,7 @@ static char *test_eor(byte opcode, int cycles, char *msg, LoadOperand load) {
 }
 
 static char *test_inc(byte opcode, int cycles, char *msg, LoadAddress load) {
-    (*load)(0x8000, opcode, 0x00AB);
+    (*load)(INSTRUCTION_ADDRESS, opcode, 0x00AB);
     mem_write(0x00AB, 0x77);
     cpu_cycle(cycles);
     ASSERT(msg, wait_cycles == 0);
@@ -619,7 +621,7 @@ static char *test_inc(byte opcode, int cycles, char *msg, LoadAddress load) {
     ASSERT(msg, !flg_is_N());
 
     /* Flag Z is set. */
-    (*load)(0x8000, opcode, 0x00AB);
+    (*load)(INSTRUCTION_ADDRESS, opcode, 0x00AB);
     mem_write(0x00AB, 0xFF);
     cpu_cycle(cycles);
     ASSERT(msg, mem_read_8(0x00AB) == 0x00);
@@ -627,7 +629,7 @@ static char *test_inc(byte opcode, int cycles, char *msg, LoadAddress load) {
     ASSERT(msg, !flg_is_N());
 
     /* Flag N is set. */
-    (*load)(0x8000, opcode, 0x00AB);
+    (*load)(INSTRUCTION_ADDRESS, opcode, 0x00AB);
     mem_write(0x00AB, 0xFE);
     cpu_cycle(cycles);
     ASSERT(msg, mem_read_8(0x00AB) == 0xFF);
@@ -638,7 +640,7 @@ static char *test_inc(byte opcode, int cycles, char *msg, LoadAddress load) {
 }
 
 static char *test_inx(byte opcode, char *msg, byte *reg) {
-    load_implied(0x8000, opcode);
+    load_implied(INSTRUCTION_ADDRESS, opcode);
     *reg = 0x77;
     cpu_cycle(2);
     ASSERT(msg, wait_cycles == 0);
@@ -647,7 +649,7 @@ static char *test_inx(byte opcode, char *msg, byte *reg) {
     ASSERT(msg, !flg_is_N());
 
     /* Flag Z is set. */
-    load_implied(0x8000, opcode);
+    load_implied(INSTRUCTION_ADDRESS, opcode);
     *reg = 0xFF;
     cpu_cycle(2);
     ASSERT(msg, *reg == 0x00);
@@ -655,7 +657,7 @@ static char *test_inx(byte opcode, char *msg, byte *reg) {
     ASSERT(msg, !flg_is_N());
 
     /* Flag N is set. */
-    load_implied(0x8000, opcode);
+    load_implied(INSTRUCTION_ADDRESS, opcode);
     *reg = 0xFE;
     cpu_cycle(2);
     ASSERT(msg, *reg == 0xFF);
@@ -666,12 +668,12 @@ static char *test_inx(byte opcode, char *msg, byte *reg) {
 }
 
 static char *test_op_4C_6C() {
-    load_absolute_addr(0x8000, 0x4C, 0x1234);
+    load_absolute_addr(INSTRUCTION_ADDRESS, 0x4C, 0x1234);
     cpu_cycle(3);
     ASSERT("JMP, Absolute (0x4C)", wait_cycles == 0);
     ASSERT("JMP, Absolute (0x4C)", cpu.PC == 0x1234);
 
-    load_absolute_addr(0x8000, 0x6C, 0xC0FE);
+    load_absolute_addr(INSTRUCTION_ADDRESS, 0x6C, 0xC0FE);
     mem_write(0xC0FE, 0x34);
     mem_write(0xC0FF, 0x12);
     cpu_cycle(5);
@@ -679,7 +681,7 @@ static char *test_op_4C_6C() {
     ASSERT("JMP, Indirect (0x6C)", cpu.PC == 0x1234);
 
     /* JMP Indirect hardware bug. */
-    load_absolute_addr(0x8000, 0x6C, 0xC0FF);
+    load_absolute_addr(INSTRUCTION_ADDRESS, 0x6C, 0xC0FF);
     mem_write(0xC0FF, 0x34);
     mem_write(0xC000, 0x12);
     cpu_cycle(5);
@@ -689,24 +691,24 @@ static char *test_op_4C_6C() {
 }
 
 static char *test_op_20_60(void) { /* JSR and RTS. */
-    load_absolute_addr(0x8000, 0x20, 0x1234);
+    load_absolute_addr(INSTRUCTION_ADDRESS, 0x20, 0x1234);
     cpu_cycle(6);
     ASSERT("JSR, Absolute (0x20)", wait_cycles == 0);
-    ASSERT("JSR, Absolute (0x20)", mem_read_16(0x1FE) == 0x8003);
+    ASSERT("JSR, Absolute (0x20)", mem_read_16(0x1FE) == INSTRUCTION_ADDRESS + 3);
     ASSERT("JSR, Absolute (0x20)", cpu.PC == 0x1234);
     ASSERT("JSR, Absolute (0x20)", cpu.S == 0xFD);
 
     mem_write(0x1234, 0x60);
     cpu_cycle(6);
     ASSERT("RTS, Implied (0x60)", wait_cycles == 0);
-    ASSERT("RTS, Implied (0x60)", cpu.PC == 0x8003);
+    ASSERT("RTS, Implied (0x60)", cpu.PC == INSTRUCTION_ADDRESS + 3);
     ASSERT("RTS, Implied (0x60)", cpu.S == 0xFF);
 
     return 0;
 }
 
 static char *test_lda(byte opcode, int cycles, char *msg, LoadOperand load, byte *reg) {
-    (*load)(0x8000, opcode, 0x77, 0x00);
+    (*load)(INSTRUCTION_ADDRESS, opcode, 0x77, 0x00);
     *reg = 0x00;
     cpu_cycle(cycles);
     ASSERT(msg, wait_cycles == 0);
@@ -717,7 +719,7 @@ static char *test_lda(byte opcode, int cycles, char *msg, LoadOperand load, byte
 
 static char *test_op_4A(void) { /* LSR, Accumulator. */
     /* No flags set. */
-    load_accumulator(0x8000, 0x4A, 0x82);
+    load_accumulator(INSTRUCTION_ADDRESS, 0x4A, 0x82);
     cpu_cycle(2);
     ASSERT("LSR, Accumulator (0x4A)", wait_cycles == 0);
     ASSERT("LSR, Accumulator (0x4A)", cpu.A == 0x41);
@@ -726,7 +728,7 @@ static char *test_op_4A(void) { /* LSR, Accumulator. */
     ASSERT("LSR, Accumulator (0x4A)", !flg_is_N());
 
     /* Zero flag set. */
-    load_accumulator(0x8000, 0x4A, 0x00);
+    load_accumulator(INSTRUCTION_ADDRESS, 0x4A, 0x00);
     cpu_cycle(2);
     ASSERT("LSR, Accumulator (0x4A)", cpu.A == 0x00);
     ASSERT("LSR, Accumulator (0x4A)", !flg_is_C());
@@ -734,7 +736,7 @@ static char *test_op_4A(void) { /* LSR, Accumulator. */
     ASSERT("LSR, Accumulator (0x4A)", !flg_is_N());
 
     /* Carry flag set. */
-    load_accumulator(0x8000, 0x4A, 0x31);
+    load_accumulator(INSTRUCTION_ADDRESS, 0x4A, 0x31);
     cpu_cycle(2);
     ASSERT("LSR, Accumulator (0x4A)", cpu.A == 0x18);
     ASSERT("LSR, Accumulator (0x4A)",  flg_is_C());
@@ -742,7 +744,7 @@ static char *test_op_4A(void) { /* LSR, Accumulator. */
     ASSERT("LSR, Accumulator (0x4A)", !flg_is_N());
 
     /* Zero and carry flag set. */
-    load_accumulator(0x8000, 0x4A, 0x01);
+    load_accumulator(INSTRUCTION_ADDRESS, 0x4A, 0x01);
     cpu_cycle(2);
     ASSERT("LSR, Accumulator (0x4A)", cpu.A == 0x00);
     ASSERT("LSR, Accumulator (0x4A)",  flg_is_C());
@@ -754,7 +756,7 @@ static char *test_op_4A(void) { /* LSR, Accumulator. */
 
 static char *test_lsr(byte opcode, int cycles, char *msg, LoadAddress load) {
     /* No flags set. */
-    (*load)(0x8000, opcode, 0x00AB);
+    (*load)(INSTRUCTION_ADDRESS, opcode, 0x00AB);
     mem_write(0x00AB, 0x82);
     cpu_cycle(cycles);
     ASSERT(msg, wait_cycles == 0);
@@ -764,7 +766,7 @@ static char *test_lsr(byte opcode, int cycles, char *msg, LoadAddress load) {
     ASSERT(msg, !flg_is_N());
 
     /* Zero flag set. */
-    (*load)(0x8000, opcode, 0x00AB);
+    (*load)(INSTRUCTION_ADDRESS, opcode, 0x00AB);
     mem_write(0x00AB, 0x00);
     cpu_cycle(cycles);
     ASSERT(msg, mem_read_8(0x00AB) == 0x00);
@@ -773,7 +775,7 @@ static char *test_lsr(byte opcode, int cycles, char *msg, LoadAddress load) {
     ASSERT(msg, !flg_is_N());
 
     /* Carry flag set. */
-    (*load)(0x8000, opcode, 0x00AB);
+    (*load)(INSTRUCTION_ADDRESS, opcode, 0x00AB);
     mem_write(0x00AB, 0x31);
     cpu_cycle(cycles);
     ASSERT(msg, mem_read_8(0x00AB) == 0x18);
@@ -782,7 +784,7 @@ static char *test_lsr(byte opcode, int cycles, char *msg, LoadAddress load) {
     ASSERT(msg, !flg_is_N());
 
     /* Zero and carry flag set. */
-    (*load)(0x8000, opcode, 0x00AB);
+    (*load)(INSTRUCTION_ADDRESS, opcode, 0x00AB);
     mem_write(0x00AB, 0x01);
     cpu_cycle(cycles);
     ASSERT(msg, mem_read_8(0x00AB) == 0x00);
@@ -795,7 +797,7 @@ static char *test_lsr(byte opcode, int cycles, char *msg, LoadAddress load) {
 
 static char *test_ora(byte opcode, int cycles, char *msg, LoadOperand load) {
     /* No flags set. */
-    (*load)(0x8000, opcode, 0x03, 0x08);
+    (*load)(INSTRUCTION_ADDRESS, opcode, 0x03, 0x08);
     cpu_cycle(cycles);
     ASSERT(msg, wait_cycles == 0);
     ASSERT(msg, cpu.A == 0x0B);
@@ -803,14 +805,14 @@ static char *test_ora(byte opcode, int cycles, char *msg, LoadOperand load) {
     ASSERT(msg, !flg_is_N());
 
     /* Flag Z set. */
-    (*load)(0x8000, opcode, 0x00, 0x00);
+    (*load)(INSTRUCTION_ADDRESS, opcode, 0x00, 0x00);
     cpu_cycle(cycles);
     ASSERT(msg, cpu.A == 0x00);
     ASSERT(msg, flg_is_Z());
     ASSERT(msg, !flg_is_N());
 
     /* Flag N set. */
-    (*load)(0x8000, opcode, 0x80, 0x03);
+    (*load)(INSTRUCTION_ADDRESS, opcode, 0x80, 0x03);
     cpu_cycle(cycles);
     ASSERT(msg, cpu.A == 0x83);
     ASSERT(msg, !flg_is_Z());
@@ -820,14 +822,14 @@ static char *test_ora(byte opcode, int cycles, char *msg, LoadOperand load) {
 }
 
 static char *test_op_48(void) { /* PHA, Implied. */
-    load_accumulator(0x8000, 0x48, 0x33);
+    load_accumulator(INSTRUCTION_ADDRESS, 0x48, 0x33);
     cpu_cycle(3);
     ASSERT("PHA, Implied (0x48)", wait_cycles == 0);
     ASSERT("PHA, Implied (0x48)", mem_read_8(0x1FF) == 0x33);
     ASSERT("PHA, Implied (0x48)", cpu.S == 0xFE);
 
     /* Wrap around. */
-    load_accumulator(0x8000, 0x48, 0x44);
+    load_accumulator(INSTRUCTION_ADDRESS, 0x48, 0x44);
     cpu.S = 0x00;
     cpu_cycle(3);
     ASSERT("PHA, Implied (0x48)", mem_read_8(0x100) == 0x44);
@@ -838,35 +840,35 @@ static char *test_op_48(void) { /* PHA, Implied. */
 
 static char *test_op_08(void) { /* PHP, Implied. */
     /* No flags set. */
-    load_implied(0x8000, 0x08);
+    load_implied(INSTRUCTION_ADDRESS, 0x08);
     cpu_cycle(3);
     ASSERT("PHP, Implied (0x08)", wait_cycles == 0);
     ASSERT("PHP, Implied (0x08)", mem_read_8(0x1FF) == 0x30);
     ASSERT("PHP, Implied (0x08)", cpu.S == 0xFE);
 
     /* Negative and decimal mode flag set. */
-    load_implied(0x8000, 0x08);
+    load_implied(INSTRUCTION_ADDRESS, 0x08);
     flg_set_N();
     flg_set_D();
     cpu_cycle(3);
     ASSERT("PHP, Implied (0x08)", mem_read_8(0x1FF) == 0xB8);
 
     /* Overflow and interrupt disable set. */
-    load_implied(0x8000, 0x08);
+    load_implied(INSTRUCTION_ADDRESS, 0x08);
     flg_set_V();
     flg_set_I();
     cpu_cycle(3);
     ASSERT("PHP, Implied (0x08)", mem_read_8(0x1FF) == 0x74);
 
     /* Zero and carry flag set. */
-    load_implied(0x8000, 0x08);
+    load_implied(INSTRUCTION_ADDRESS, 0x08);
     flg_set_C();
     flg_set_Z();
     cpu_cycle(3);
     ASSERT("PHP, Implied (0x08)", mem_read_8(0x1FF) == 0x33);
 
     /* All flags set. */
-    load_implied(0x8000, 0x08);
+    load_implied(INSTRUCTION_ADDRESS, 0x08);
     flg_set_C();
     flg_set_Z();
     flg_set_I();
@@ -880,7 +882,7 @@ static char *test_op_08(void) { /* PHP, Implied. */
 }
 
 static char *test_op_68(void) { /* PLA, Implied. */
-    load_implied(0x8000, 0x68);
+    load_implied(INSTRUCTION_ADDRESS, 0x68);
     mem_write(0x134, 0x44);
     cpu.S = 0x33;
     cpu_cycle(4);
@@ -889,7 +891,7 @@ static char *test_op_68(void) { /* PLA, Implied. */
     ASSERT("PLA, Implied (0x68)", cpu.S == 0x34);
 
     /* Wrap around. */
-    load_implied(0x8000, 0x68);
+    load_implied(INSTRUCTION_ADDRESS, 0x68);
     mem_write(0x100, 0x44);
     cpu.S = 0xFF;
     cpu_cycle(4);
@@ -901,7 +903,7 @@ static char *test_op_68(void) { /* PLA, Implied. */
 
 static char *test_op_28(void) { /* PLP, Implied. */
     /* No flags set. */
-    load_implied(0x8000, 0x28);
+    load_implied(INSTRUCTION_ADDRESS, 0x28);
     mem_write(0x1FF, 0x00);
     cpu.S = 0xFE;
     cpu_cycle(4);
@@ -914,7 +916,7 @@ static char *test_op_28(void) { /* PLP, Implied. */
     ASSERT("PLP, Implied (0x28)", !flg_is_N());
 
     /* Negative and decimal mode flags set. */
-    load_implied(0x8000, 0x28);
+    load_implied(INSTRUCTION_ADDRESS, 0x28);
     mem_write(0x1FF, 0x88);
     cpu.S = 0xFE;
     cpu_cycle(4);
@@ -926,7 +928,7 @@ static char *test_op_28(void) { /* PLP, Implied. */
     ASSERT("PLP, Implied (0x28)",  flg_is_N());
 
     /* Overflow and interrupt disable set. */
-    load_implied(0x8000, 0x28);
+    load_implied(INSTRUCTION_ADDRESS, 0x28);
     mem_write(0x1FF, 0x74);
     cpu.S = 0xFE;
     cpu_cycle(4);
@@ -938,7 +940,7 @@ static char *test_op_28(void) { /* PLP, Implied. */
     ASSERT("PLP, Implied (0x28)", !flg_is_N());
 
     /* Zero and carry flag set. */
-    load_implied(0x8000, 0x28);
+    load_implied(INSTRUCTION_ADDRESS, 0x28);
     mem_write(0x1FF, 0x33);
     cpu.S = 0xFE;
     cpu_cycle(4);
@@ -950,7 +952,7 @@ static char *test_op_28(void) { /* PLP, Implied. */
     ASSERT("PLP, Implied (0x28)", !flg_is_N());
 
     /* All flags set. */
-    load_implied(0x8000, 0x28);
+    load_implied(INSTRUCTION_ADDRESS, 0x28);
     mem_write(0x1FF, 0xFF);
     cpu.S = 0xFE;
     cpu_cycle(4);
@@ -966,7 +968,7 @@ static char *test_op_28(void) { /* PLP, Implied. */
 
 static char *test_op_2A(void) { /* ROL, Accumulator. */
     /* No flags set. */
-    load_accumulator(0x8000, 0x2A, 0x31);
+    load_accumulator(INSTRUCTION_ADDRESS, 0x2A, 0x31);
     cpu_cycle(2);
     ASSERT("ROL, Accumulator (0x2A)", wait_cycles == 0);
     ASSERT("ROL, Accumulator (0x2A)", cpu.A == 0x62);
@@ -975,7 +977,7 @@ static char *test_op_2A(void) { /* ROL, Accumulator. */
     ASSERT("ROL, Accumulator (0x2A)", !flg_is_N());
 
     /* Carry flag set. */
-    load_accumulator(0x8000, 0x2A, 0x88);
+    load_accumulator(INSTRUCTION_ADDRESS, 0x2A, 0x88);
     cpu_cycle(2);
     ASSERT("ROL, Accumulator (0x2A)", cpu.A == 0x11);
     ASSERT("ROL, Accumulator (0x2A)",  flg_is_C());
@@ -983,7 +985,7 @@ static char *test_op_2A(void) { /* ROL, Accumulator. */
     ASSERT("ROL, Accumulator (0x2A)", !flg_is_N());
 
     /* Zero flag set. */
-    load_accumulator(0x8000, 0x2A, 0x00);
+    load_accumulator(INSTRUCTION_ADDRESS, 0x2A, 0x00);
     cpu_cycle(2);
     ASSERT("ROL, Accumulator (0x2A)", cpu.A == 0x00);
     ASSERT("ROL, Accumulator (0x2A)", !flg_is_C());
@@ -991,7 +993,7 @@ static char *test_op_2A(void) { /* ROL, Accumulator. */
     ASSERT("ROL, Accumulator (0x2A)", !flg_is_N());
 
     /* Negative flag set. */
-    load_accumulator(0x8000, 0x2A, 0x78);
+    load_accumulator(INSTRUCTION_ADDRESS, 0x2A, 0x78);
     cpu_cycle(2);
     ASSERT("ROL, Accumulator (0x2A)", cpu.A == 0xF0);
     ASSERT("ROL, Accumulator (0x2A)", !flg_is_C());
@@ -1003,7 +1005,7 @@ static char *test_op_2A(void) { /* ROL, Accumulator. */
 
 static char *test_rol(byte opcode, int cycles, char *msg, LoadAddress load) {
     /* No flags set. */
-    (*load)(0x8000, opcode, 0x00AB);
+    (*load)(INSTRUCTION_ADDRESS, opcode, 0x00AB);
     mem_write(0x00AB, 0x31);
     cpu_cycle(cycles);
     ASSERT(msg, wait_cycles == 0);
@@ -1013,7 +1015,7 @@ static char *test_rol(byte opcode, int cycles, char *msg, LoadAddress load) {
     ASSERT(msg, !flg_is_N());
 
     /* Carry flag set. */
-    (*load)(0x8000, opcode, 0x00AB);
+    (*load)(INSTRUCTION_ADDRESS, opcode, 0x00AB);
     mem_write(0x00AB, 0x88);
     cpu_cycle(cycles);
     ASSERT(msg, mem_read_8(0x00AB) == 0x11);
@@ -1022,7 +1024,7 @@ static char *test_rol(byte opcode, int cycles, char *msg, LoadAddress load) {
     ASSERT(msg, !flg_is_N());
 
     /* Zero flag set. */
-    (*load)(0x8000, opcode, 0x00AB);
+    (*load)(INSTRUCTION_ADDRESS, opcode, 0x00AB);
     mem_write(0x00AB, 0x00);
     cpu_cycle(cycles);
     ASSERT(msg, mem_read_8(0x00AB) == 0x00);
@@ -1031,7 +1033,7 @@ static char *test_rol(byte opcode, int cycles, char *msg, LoadAddress load) {
     ASSERT(msg, !flg_is_N());
 
     /* Negative flag set. */
-    (*load)(0x8000, opcode, 0x00AB);
+    (*load)(INSTRUCTION_ADDRESS, opcode, 0x00AB);
     mem_write(0x00AB, 0x78);
     cpu_cycle(cycles);
     ASSERT(msg, mem_read_8(0x00AB) == 0xF0);
@@ -1044,7 +1046,7 @@ static char *test_rol(byte opcode, int cycles, char *msg, LoadAddress load) {
 
 static char *test_op_6A(void) { /* ROR, Accumulator. */
     /* No flags set. */
-    load_accumulator(0x8000, 0x6A, 0x82);
+    load_accumulator(INSTRUCTION_ADDRESS, 0x6A, 0x82);
     cpu_cycle(2);
     ASSERT("ROR, Accumulator (0x6A)", wait_cycles == 0);
     ASSERT("ROR, Accumulator (0x6A)", cpu.A == 0x41);
@@ -1053,7 +1055,7 @@ static char *test_op_6A(void) { /* ROR, Accumulator. */
     ASSERT("ROR, Accumulator (0x6A)", !flg_is_N());
 
     /* Zero flag set. */
-    load_accumulator(0x8000, 0x6A, 0x00);
+    load_accumulator(INSTRUCTION_ADDRESS, 0x6A, 0x00);
     cpu_cycle(2);
     ASSERT("ROR, Accumulator (0x6A)", cpu.A == 0x00);
     ASSERT("ROR, Accumulator (0x6A)", !flg_is_C());
@@ -1061,7 +1063,7 @@ static char *test_op_6A(void) { /* ROR, Accumulator. */
     ASSERT("ROR, Accumulator (0x6A)", !flg_is_N());
 
     /* Carry and negative flag set. */
-    load_accumulator(0x8000, 0x6A, 0x31);
+    load_accumulator(INSTRUCTION_ADDRESS, 0x6A, 0x31);
     cpu_cycle(2);
     ASSERT("ROR, Accumulator (0x6A)", cpu.A == 0x98);
     ASSERT("ROR, Accumulator (0x6A)",  flg_is_C());
@@ -1073,7 +1075,7 @@ static char *test_op_6A(void) { /* ROR, Accumulator. */
 
 static char *test_ror(byte opcode, int cycles, char *msg, LoadAddress load) {
     /* No flags set. */
-    (*load)(0x8000, opcode, 0x00AB);
+    (*load)(INSTRUCTION_ADDRESS, opcode, 0x00AB);
     mem_write(0x00AB, 0x82);
     cpu_cycle(cycles);
     ASSERT(msg, wait_cycles == 0);
@@ -1083,7 +1085,7 @@ static char *test_ror(byte opcode, int cycles, char *msg, LoadAddress load) {
     ASSERT(msg, !flg_is_N());
 
     /* Zero flag set. */
-    (*load)(0x8000, opcode, 0x00AB);
+    (*load)(INSTRUCTION_ADDRESS, opcode, 0x00AB);
     mem_write(0x00AB, 0x00);
     cpu_cycle(cycles);
     ASSERT(msg, mem_read_8(0x00AB) == 0x00);
@@ -1092,7 +1094,7 @@ static char *test_ror(byte opcode, int cycles, char *msg, LoadAddress load) {
     ASSERT(msg, !flg_is_N());
 
     /* Carry and negative flag set. */
-    (*load)(0x8000, opcode, 0x00AB);
+    (*load)(INSTRUCTION_ADDRESS, opcode, 0x00AB);
     mem_write(0x00AB, 0x31);
     cpu_cycle(cycles);
     ASSERT(msg, mem_read_8(0x00AB) == 0x98);
@@ -1105,7 +1107,7 @@ static char *test_ror(byte opcode, int cycles, char *msg, LoadAddress load) {
 
 static char *test_sbc(byte opcode, int cycles, char *msg, LoadOperand load) {
     /* Carry flag set, subtract with carry. */
-    (*load)(0x8000, opcode, 0x74, 0x77);
+    (*load)(INSTRUCTION_ADDRESS, opcode, 0x74, 0x77);
     flg_set_C();
     cpu_cycle(cycles);
     ASSERT(msg, wait_cycles == 0);
@@ -1116,7 +1118,7 @@ static char *test_sbc(byte opcode, int cycles, char *msg, LoadOperand load) {
     ASSERT(msg, !flg_is_N());
 
     /* Carry and zero flag set, subtract without carry. */
-    (*load)(0x8000, opcode, 0x76, 0x77);
+    (*load)(INSTRUCTION_ADDRESS, opcode, 0x76, 0x77);
     flg_clear_C();
     cpu_cycle(cycles);
     ASSERT(msg, cpu.A == 0x00);
@@ -1126,7 +1128,7 @@ static char *test_sbc(byte opcode, int cycles, char *msg, LoadOperand load) {
     ASSERT(msg, !flg_is_N());
 
     /* Negative flag set, substract with carry. */
-    (*load)(0x8000, opcode, 0x77, 0x76);
+    (*load)(INSTRUCTION_ADDRESS, opcode, 0x77, 0x76);
     flg_set_C();
     cpu_cycle(cycles);
     ASSERT(msg, cpu.A == 0xFF);
@@ -1136,7 +1138,7 @@ static char *test_sbc(byte opcode, int cycles, char *msg, LoadOperand load) {
     ASSERT(msg,  flg_is_N());
 
     /* Overflow caused by carry (I). */
-    (*load)(0x8000, opcode, 0x00, 0x80);
+    (*load)(INSTRUCTION_ADDRESS, opcode, 0x00, 0x80);
     flg_clear_C();
     cpu_cycle(cycles);
     ASSERT(msg, cpu.A == 0x7F);
@@ -1146,7 +1148,7 @@ static char *test_sbc(byte opcode, int cycles, char *msg, LoadOperand load) {
     ASSERT(msg, !flg_is_N());
 
     /* Overflow caused by carry (II). */
-    (*load)(0x8000, opcode, 0x7F, 0xFF);
+    (*load)(INSTRUCTION_ADDRESS, opcode, 0x7F, 0xFF);
     flg_clear_C();
     cpu_cycle(cycles);
     ASSERT(msg, cpu.A == 0x7F);
@@ -1159,7 +1161,7 @@ static char *test_sbc(byte opcode, int cycles, char *msg, LoadOperand load) {
 }
 
 static char *test_set(byte opcode, char *msg, Function clear, Bool check) {
-    load_implied(0x8000, opcode);
+    load_implied(INSTRUCTION_ADDRESS, opcode);
     (*clear)();
     cpu_cycle(2);
     ASSERT(msg, wait_cycles == 0);
@@ -1169,7 +1171,7 @@ static char *test_set(byte opcode, char *msg, Function clear, Bool check) {
 }
 
 static char *test_str(byte opcode, int cycles, char *msg, LoadAddress load, byte *store) {
-    (*load)(0x8000, opcode, 0x0012);
+    (*load)(INSTRUCTION_ADDRESS, opcode, 0x0012);
     *store = 0x77;
     cpu_cycle(cycles);
     ASSERT(msg, wait_cycles == 0);
@@ -1179,7 +1181,7 @@ static char *test_str(byte opcode, int cycles, char *msg, LoadAddress load, byte
 }
 
 static char *test_trn(byte opcode, char *msg, byte *source, byte *dest, bool test_flags) {
-    load_implied(0x8000, opcode);
+    load_implied(INSTRUCTION_ADDRESS, opcode);
     *source = 0x77;
     *dest = 0x00;
     cpu_cycle(2);
@@ -1190,21 +1192,21 @@ static char *test_trn(byte opcode, char *msg, byte *source, byte *dest, bool tes
         ASSERT(msg, !flg_is_Z());
         ASSERT(msg, !flg_is_N());
 
-        load_implied(0x8000, opcode);
+        load_implied(INSTRUCTION_ADDRESS, opcode);
         *source = 0x00;
         cpu_cycle(2);
         ASSERT(msg, *dest == 0x00);
         ASSERT(msg, flg_is_Z());
         ASSERT(msg, !flg_is_N());
 
-        load_implied(0x8000, opcode);
+        load_implied(INSTRUCTION_ADDRESS, opcode);
         *source = 0x83;
         cpu_cycle(2);
         ASSERT(msg, *dest == 0x83);
         ASSERT(msg, !flg_is_Z());
         ASSERT(msg, flg_is_N());
     } else {
-        load_implied(0x8000, opcode);
+        load_implied(INSTRUCTION_ADDRESS, opcode);
         flg_clear_Z();
         *source = 0x00;
         cpu_cycle(2);
