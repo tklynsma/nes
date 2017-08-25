@@ -18,8 +18,10 @@ typedef struct {
 static CPU cpu;          /* The CPU status. */
 static byte operand;     /* Operand (8 bit) of the instruction. */
 static word address;     /* Operand (16 bit) of the instruction. */
+
 static int wait_cycles;  /* The number of cycles to wait till the next operation. */
-static int extra_cycles; /* The number of additional cycles. */
+static int extra_cycles; /* The number of additional cycles to be added. */
+static unsigned long long cycles; /* Total number of cycles run so far. */
 
 /* -----------------------------------------------------------------
  * Stack operations.
@@ -827,13 +829,22 @@ void cpu_cycle(int num_cycles) {
 
         wait_cycles--;
         num_cycles--;
+        cycles++;
     }
 }
 
+inline unsigned long long cpu_get_ticks(void) {
+    return cycles;
+}
+
+inline void cpu_suspend(int num_cycles) {
+    wait_cycles += num_cycles;
+}
+
 inline byte cpu_ram_read(word address) {
-    return cpu.ram[address % RAM_SIZE];
+    return cpu.ram[address & 0x7FF];
 }
 
 inline void cpu_ram_write(word address, byte data) {
-    cpu.ram[address % RAM_SIZE] = data;
+    cpu.ram[address & 0x7FF] = data;
 }

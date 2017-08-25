@@ -1,7 +1,6 @@
 #ifndef PPU_H
 #define PPU_H
 
-#define NUM_REGISTERS 8
 #define OAM_SIZE 256
 
 #include "common.h"
