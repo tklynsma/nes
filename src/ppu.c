@@ -9,6 +9,12 @@
  * -------------------------------------------------------------- */
 
 typedef struct {
+    /* PPU storage. */
+    byte nametable[2048];
+    byte palette[32];          /* PPU palettes (0x3F00 - 0x3F1F). */
+    byte oam[256];             /* Object Attribute Memory. */
+
+    /* PPUCTRL (0x2000). */
     bool ctrl_nmi;             /* Generate an NMI at the start of the VBI */
     bool ctrl_master_slave;    /* PPU master/slave select. */
     bool ctrl_sprite_size;     /* Sprite size (0: 8x8; 1: 8x16). */
@@ -17,6 +23,7 @@ typedef struct {
     byte ctrl_increment;       /* VRAM address increment per CPU read/write of PPUDATA (1 or 32). */
     byte ctrl_nametable_addr;  /* Base nametable address (0: 0x2000; 1: 0x2400; 2: 0x2800; 3: 0x2C00). */
 
+    /* PPUMASK (0x2001). */
     bool mask_red;             /* Emphasize red (NTSC) or green (PAL). */
     bool mask_green;           /* Emphasize green (NTSC) or red (PAL). */
     bool mask_blue;            /* Emphasize blue. */
@@ -26,14 +33,16 @@ typedef struct {
     bool mask_background_L;    /* Render background in the leftmost column. */
     bool mask_grayscale;       /* Produce a grayscale display. */
 
+    /* PPUSTATUS (0x2002). */
     bool stat_vblank;          /* Vertical blank has started. */
     bool stat_sprite_hit;      /* Set when sprite 0 overlaps with a background pixel. */
     bool stat_sprite_overflow; /* Set when more than 8 sprites appear on a scanline (buggy). */
 
-    byte oam[OAM_SIZE];        /* OAM (Object Attribute Memory). */
+    /* OAMADDR (0x2003) and OAMDATA (0x2004). */
     byte oam_addr;             /* OAM address (0x2003). */
     byte oam_data;             /* OAM data (0x2004). */
 
+    /* PPUADDR (0x2006) and PPUDATA (0x2007). */
     word vram_addr;            /* PPU address register (0x2006). */
     byte vram_data;            /* PPU data (0x2007). */
     byte vram_buffer;          /* Internal read buffer. */
@@ -130,35 +139,53 @@ static inline void write_ppu_data(byte data) {
     ppu.vram_addr += ppu.ctrl_increment;
 }
 
-static inline void write_oam_dma(byte data) {
-    word address = data << 8;
-    for (int i = 0; i < OAM_SIZE; i++) {
-        ppu.oam[ppu.oam_addr++] = mem_read_8(address++);
-    }
-    cpu_suspend(513 + (cpu_get_ticks() % 2));
-}
-
 inline byte ppu_io_read(word address) {
-    address = address < 0x4000 ? 0x2000 + (address % 8) : address;
-    switch (address) {
-        case 0x2002: return read_ppu_status();
-        case 0x2004: return read_oam_data();
-        case 0x2007: return read_ppu_data();
+    switch (address & 0x7) {
+        case 2: return read_ppu_status();
+        case 4: return read_oam_data();
+        case 7: return read_ppu_data();
     }
     return ppu.latch;
 }
 
 inline void ppu_io_write(word address, byte data) {
-    address = address < 0x4000 ? 0x2000 + (address % 8) : address;
-    switch (address) {
-        case 0x2000: write_ppu_ctrl(data);      break;
-        case 0x2001: write_ppu_mask(data);      break;
-        case 0x2003: write_oam_address(data);   break;
-        case 0x2004: write_oam_data(data);      break;
-        case 0x2005: write_ppu_scroll(data);    break;
-        case 0x2006: write_ppu_address(data);   break;
-        case 0x2007: write_ppu_data(data);      break;
-        case 0x4014: write_oam_dma(data);       break;
+    switch (address & 0x7) {
+        case 0: write_ppu_ctrl(data);      break;
+        case 1: write_ppu_mask(data);      break;
+        case 3: write_oam_address(data);   break;
+        case 4: write_oam_data(data);      break;
+        case 5: write_ppu_scroll(data);    break;
+        case 6: write_ppu_address(data);   break;
+        case 7: write_ppu_data(data);      break;
     }
     ppu.latch = data;
+}
+
+inline byte ppu_dma_read(void) {
+    return ppu.latch;
+}
+
+inline void ppu_dma_write(byte data) {
+    word address = data << 8;
+    for (int i = 0; i < 256; i++) {
+        ppu.oam[ppu.oam_addr++] = mem_read(address++);
+    }
+    cpu_suspend(513 + (cpu_get_ticks() % 2));
+    ppu.latch = data;
+}
+
+inline byte ppu_palette_read(word address) {
+    return ppu.palette[address];
+}
+
+inline void ppu_palette_write(word address, byte data) {
+    ppu.palette[address] = data;
+}
+
+inline byte ppu_nametable_read(word address) {
+    return ppu.nametable[address];
+}
+
+inline void ppu_nametable_write(word address, byte data) {
+    ppu.nametable[address] = data;
 }

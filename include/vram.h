@@ -3,9 +3,10 @@
 
 #include "common.h"
 
-#define VRAM_SIZE 0x3F20
+typedef enum { HORIZONTAL = 0, VERTICAL, SINGLE_0, SINGLE_1, MMC } MirrorMode;
 
 void vrm_init(void);
+void vrm_set_mode(MirrorMode mode_);
 byte vrm_read(word address);
 void vrm_write(word address, byte data);
 

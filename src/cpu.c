@@ -87,8 +87,8 @@ static inline void implied(void) {
 static inline void indirect(void) {
     address = mem_read_16(cpu.PC + 1);
     if (address & 0xFF == 0xFF) {
-        byte lo = mem_read_8(address);
-        byte hi = mem_read_8(address - 0xFF);
+        byte lo = mem_read(address);
+        byte hi = mem_read(address - 0xFF);
         address = (hi << 8) | lo;
     }
     else {
@@ -97,7 +97,7 @@ static inline void indirect(void) {
 }
 
 static inline void indirect_x(void) {
-    address = mem_read_8 (cpu.PC + 1);
+    address = mem_read(cpu.PC + 1);
     byte lo = cpu.ram[(address + cpu.X) & 0xFF];
     byte hi = cpu.ram[(address + cpu.X + 1) & 0xFF];
     address = (hi << 8) | lo;
@@ -105,7 +105,7 @@ static inline void indirect_x(void) {
 }
 
 static inline void indirect_y(void) {
-    address = mem_read_8 (cpu.PC + 1);
+    address = mem_read(cpu.PC + 1);
     byte lo = cpu.ram[address];
     byte hi = cpu.ram[(address + 1) & 0xFF];
     address = ((hi << 8) | lo) + cpu.Y;
@@ -119,17 +119,17 @@ static inline void relative(void) {
 }
 
 static inline void zero_page(void) {
-    address = mem_read_8(cpu.PC + 1);
+    address = mem_read(cpu.PC + 1);
     cpu.PC += 2;
 }
 
 static inline void zero_page_x(void) {
-    address = (mem_read_8(cpu.PC + 1) + cpu.X) & 0xFF;
+    address = (mem_read(cpu.PC + 1) + cpu.X) & 0xFF;
     cpu.PC += 2;
 }
 
 static inline void zero_page_y(void) {
-    address = (mem_read_8(cpu.PC + 1) + cpu.Y) & 0xFF;
+    address = (mem_read(cpu.PC + 1) + cpu.Y) & 0xFF;
     cpu.PC += 2;
 }
 
@@ -140,7 +140,7 @@ static inline void zero_page_y(void) {
 /* Branching instructions. */
 static inline void branch(bool condition) {
     if (condition) {
-        operand = mem_read_8(address);
+        operand = mem_read(address);
         address = cpu.PC;
         cpu.PC += (int8_t) operand;
 
@@ -153,7 +153,7 @@ static inline void branch(bool condition) {
 
 /* ADC - Add with Carry. */
 static inline void adc(void) {
-    operand = mem_read_8(address);
+    operand = mem_read(address);
     int result = cpu.A + operand + flg_is_C();
     flg_update_ZN(result);
     flg_update_C (result, ADC);
@@ -163,7 +163,7 @@ static inline void adc(void) {
 
 /* AND - Logical AND. */
 static inline void and(void) {
-    operand = mem_read_8(address);
+    operand = mem_read(address);
     flg_update_ZN(cpu.A &= operand);
 }
 
@@ -175,7 +175,7 @@ static inline void asl_a(void) {
 
 /* ASL - Arithmetic Shift Left (Memory). */
 static inline void asl_m(void) {
-    operand = mem_read_8(address);
+    operand = mem_read(address);
     flg_update_C (operand, ROL);
     mem_write(address, operand <<= 1);
     flg_update_ZN(operand);
@@ -199,7 +199,7 @@ static inline void beq(void) {
 
 /* BIT - Bit Test. */
 static inline void bit(void) {
-    operand = mem_read_8(address);
+    operand = mem_read(address);
     byte test = cpu.A & operand;
     flg_update_ZN(test);
     flg_update_V_bit(test);
@@ -260,28 +260,28 @@ static inline void clv(void) {
 
 /* CMP - Compare. */
 static inline void cmp(void) {
-    operand = mem_read_8(address);
+    operand = mem_read(address);
     flg_update_C (cpu.A - operand, CMP);
     flg_update_ZN(cpu.A - operand);
 }
 
 /* CPX - Compare X Register. */
 static inline void cpx(void) {
-    operand = mem_read_8(address);
+    operand = mem_read(address);
     flg_update_C (cpu.X - operand, CMP);
     flg_update_ZN(cpu.X - operand);
 }
 
 /* CPY - Compare Y Register. */
 static inline void cpy(void) {
-    operand = mem_read_8(address);
+    operand = mem_read(address);
     flg_update_C (cpu.Y - operand, CMP);
     flg_update_ZN(cpu.Y - operand);
 }
 
 /* DEC - Decrement Memory. */
 static inline void dec(void) {
-    operand = mem_read_8(address);
+    operand = mem_read(address);
     mem_write(address, --operand);
     flg_update_ZN(operand);
     extra_cycles = 0;
@@ -299,13 +299,13 @@ static inline void dey(void) {
 
 /* EOR - Exclusive OR. */
 static inline void eor(void) {
-    operand = mem_read_8(address);
+    operand = mem_read(address);
     flg_update_ZN(cpu.A ^= operand);
 }
 
 /* INC - Increment Memory. */
 static inline void inc(void) {
-    operand = mem_read_8(address);
+    operand = mem_read(address);
     mem_write(address, ++operand);
     flg_update_ZN(operand);
     extra_cycles = 0;
@@ -334,19 +334,19 @@ static inline void jsr(void) {
 
 /* LDA - Load Accumulator. */
 static inline void lda(void) {
-    operand = mem_read_8(address);
+    operand = mem_read(address);
     flg_update_ZN(cpu.A = operand);
 }
 
 /* LDX - Load X Register. */
 static inline void ldx(void) {
-    operand = mem_read_8(address);
+    operand = mem_read(address);
     flg_update_ZN(cpu.X = operand);
 }
 
 /* LDY - Load Y Register. */
 static inline void ldy(void) {
-    operand = mem_read_8(address);
+    operand = mem_read(address);
     flg_update_ZN(cpu.Y = operand);
 }
 
@@ -358,7 +358,7 @@ static inline void lsr_a(void) {
 
 /* LSR - Logical Shift Right (Memory). */
 static inline void lsr_m(void) {
-    operand = mem_read_8(address);
+    operand = mem_read(address);
     flg_update_C (operand, ROR);
     mem_write(address, operand >>= 1);
     flg_update_ZN(operand);
@@ -370,7 +370,7 @@ static inline void nop(void) {}
 
 /* ORA - Logical Inclusive OR. */
 static inline void ora(void) {
-    operand = mem_read_8(address);
+    operand = mem_read(address);
     flg_update_ZN(cpu.A |= operand);
 }
 
@@ -403,7 +403,7 @@ static inline void rol_a(void) {
 
 /* ROL - Rotate Left (Memory). */
 static inline void rol_m(void) {
-    operand = mem_read_8(address);
+    operand = mem_read(address);
     flg_update_C (operand, ROL);
     operand = (operand << 1) | flg_is_C();
     mem_write(address, operand);
@@ -420,7 +420,7 @@ static inline void ror_a(void) {
 
 /* ROR - Rotate Right (Memory). */
 static inline void ror_m(void) {
-    operand = mem_read_8(address);
+    operand = mem_read(address);
     flg_update_C (operand, ROR);
     operand = (operand >> 1) | (flg_is_C() << 7);
     mem_write(address, operand);
@@ -441,7 +441,7 @@ static inline void rts(void) {
 
 /* SBC - Subtract with Carry. */
 static inline void sbc(void) {
-    operand = mem_read_8(address);
+    operand = mem_read(address);
     int result = (int8_t) cpu.A - (int8_t) operand - (int8_t) !flg_is_C();
     flg_update_ZN(result);
     flg_update_C (result, SBC);
@@ -821,7 +821,7 @@ void cpu_cycle(int num_cycles) {
     while (num_cycles > 0) {
         if (wait_cycles == 0) {
             extra_cycles = 0;
-            byte opcode = mem_read_8(cpu.PC);
+            byte opcode = mem_read(cpu.PC);
             (*cpu_addressing_table[opcode])();
             (*cpu_instruction_table[opcode])();
             wait_cycles = cpu_cycles_table[opcode] + extra_cycles;

@@ -10,7 +10,7 @@ inline void mem_init(void) {
     }
 }
 
-inline byte mem_read_8(word address) {
+inline byte mem_read(word address) {
     if (address < 0x2000) {             /* 0x0000 - 0x1FFF */
         return cpu_ram_read(address);
     }
@@ -18,7 +18,7 @@ inline byte mem_read_8(word address) {
         return ppu_io_read(address);
     }
     else if (address == 0x4014) {       /* 0x4014: OAM DMA */
-        return ppu_io_read(address);
+        return ppu_dma_read();
     }
     else {                              /* TODO */
         return memory[address];
@@ -26,7 +26,7 @@ inline byte mem_read_8(word address) {
 }
 
 inline word mem_read_16(word address) {
-    return (mem_read_8(address + 1) << 8) | mem_read_8(address);
+    return (mem_read(address + 1) << 8) | mem_read(address);
 }
 
 inline void mem_write(word address, byte data) {
@@ -37,7 +37,7 @@ inline void mem_write(word address, byte data) {
         ppu_io_write(address, data);
     }
     else if (address == 0x4014) {       /* 0x4014: OAM DMA */
-        ppu_io_write(address, data);
+        ppu_dma_write(data);
     }
     else {                              /* TODO */
         memory[address] = data;

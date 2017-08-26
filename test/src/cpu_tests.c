@@ -360,7 +360,7 @@ static char *test_asl(byte opcode, int cycles, char *msg, LoadAddress load) {
     mem_write(0x00AB, 0x03);
     cpu_cycle(cycles);
     ASSERT(msg, wait_cycles == 0);
-    ASSERT(msg, mem_read_8(0x00AB) == 0x06);
+    ASSERT(msg, mem_read(0x00AB) == 0x06);
     ASSERT(msg, !flg_is_C());
     ASSERT(msg, !flg_is_Z());
     ASSERT(msg, !flg_is_N());
@@ -369,7 +369,7 @@ static char *test_asl(byte opcode, int cycles, char *msg, LoadAddress load) {
     (*load)(INSTRUCTION_ADDRESS, opcode, 0x00AB);
     mem_write(0x00AB, 0x80);
     cpu_cycle(cycles);
-    ASSERT(msg, mem_read_8(0x00AB) == 0x00);
+    ASSERT(msg, mem_read(0x00AB) == 0x00);
     ASSERT(msg,  flg_is_C());
     ASSERT(msg,  flg_is_Z());
     ASSERT(msg, !flg_is_N());
@@ -378,7 +378,7 @@ static char *test_asl(byte opcode, int cycles, char *msg, LoadAddress load) {
     (*load)(INSTRUCTION_ADDRESS, opcode, 0x00AB);
     mem_write(0x00AB, 0x7F);
     cpu_cycle(cycles);
-    ASSERT(msg, mem_read_8(0x00AB) == 0xFE);
+    ASSERT(msg, mem_read(0x00AB) == 0xFE);
     ASSERT(msg, !flg_is_C());
     ASSERT(msg, !flg_is_Z());
     ASSERT(msg,  flg_is_N());
@@ -468,7 +468,7 @@ static char *test_op_00_40(void) { /* BRK and RTI. */
     ASSERT("BRK, Implied (0x00)", wait_cycles == 0);
     ASSERT("BRK, Implied (0x00)", cpu.PC == 0x1234);
     ASSERT("BRK, Implied (0x00)", mem_read_16(0x1FE) == INSTRUCTION_ADDRESS + 2);
-    ASSERT("BRK, Implied (0x00)", mem_read_8 (0x1FD) == 0x72);
+    ASSERT("BRK, Implied (0x00)", mem_read(0x1FD) == 0x72);
     ASSERT("BRK, Implied (0x00)", cpu.S == 0xFC);
 
     mem_write(0x1234, 0x40);
@@ -534,7 +534,7 @@ static char *test_dec(byte opcode, int cycles, char *msg, LoadAddress load) {
     mem_write(0x00AB, 0x77);
     cpu_cycle(cycles);
     ASSERT(msg, wait_cycles == 0);
-    ASSERT(msg, mem_read_8(0x00AB) == 0x76);
+    ASSERT(msg, mem_read(0x00AB) == 0x76);
     ASSERT(msg, !flg_is_Z());
     ASSERT(msg, !flg_is_N());
 
@@ -542,7 +542,7 @@ static char *test_dec(byte opcode, int cycles, char *msg, LoadAddress load) {
     (*load)(INSTRUCTION_ADDRESS, opcode, 0x00AB);
     mem_write(0x00AB, 0x01);
     cpu_cycle(cycles);
-    ASSERT(msg, mem_read_8(0x00AB) == 0x00);
+    ASSERT(msg, mem_read(0x00AB) == 0x00);
     ASSERT(msg, flg_is_Z());
     ASSERT(msg, !flg_is_N());
 
@@ -550,7 +550,7 @@ static char *test_dec(byte opcode, int cycles, char *msg, LoadAddress load) {
     (*load)(INSTRUCTION_ADDRESS, opcode, 0x00AB);
     mem_write(0x00AB, 0x00);
     cpu_cycle(cycles);
-    ASSERT(msg, mem_read_8(0x00AB) == 0xFF);
+    ASSERT(msg, mem_read(0x00AB) == 0xFF);
     ASSERT(msg, !flg_is_Z());
     ASSERT(msg, flg_is_N());
 
@@ -616,7 +616,7 @@ static char *test_inc(byte opcode, int cycles, char *msg, LoadAddress load) {
     mem_write(0x00AB, 0x77);
     cpu_cycle(cycles);
     ASSERT(msg, wait_cycles == 0);
-    ASSERT(msg, mem_read_8(0x00AB) == 0x78);
+    ASSERT(msg, mem_read(0x00AB) == 0x78);
     ASSERT(msg, !flg_is_Z());
     ASSERT(msg, !flg_is_N());
 
@@ -624,7 +624,7 @@ static char *test_inc(byte opcode, int cycles, char *msg, LoadAddress load) {
     (*load)(INSTRUCTION_ADDRESS, opcode, 0x00AB);
     mem_write(0x00AB, 0xFF);
     cpu_cycle(cycles);
-    ASSERT(msg, mem_read_8(0x00AB) == 0x00);
+    ASSERT(msg, mem_read(0x00AB) == 0x00);
     ASSERT(msg, flg_is_Z());
     ASSERT(msg, !flg_is_N());
 
@@ -632,7 +632,7 @@ static char *test_inc(byte opcode, int cycles, char *msg, LoadAddress load) {
     (*load)(INSTRUCTION_ADDRESS, opcode, 0x00AB);
     mem_write(0x00AB, 0xFE);
     cpu_cycle(cycles);
-    ASSERT(msg, mem_read_8(0x00AB) == 0xFF);
+    ASSERT(msg, mem_read(0x00AB) == 0xFF);
     ASSERT(msg, !flg_is_Z());
     ASSERT(msg, flg_is_N());
 
@@ -760,7 +760,7 @@ static char *test_lsr(byte opcode, int cycles, char *msg, LoadAddress load) {
     mem_write(0x00AB, 0x82);
     cpu_cycle(cycles);
     ASSERT(msg, wait_cycles == 0);
-    ASSERT(msg, mem_read_8(0x00AB) == 0x41);
+    ASSERT(msg, mem_read(0x00AB) == 0x41);
     ASSERT(msg, !flg_is_C());
     ASSERT(msg, !flg_is_Z());
     ASSERT(msg, !flg_is_N());
@@ -769,7 +769,7 @@ static char *test_lsr(byte opcode, int cycles, char *msg, LoadAddress load) {
     (*load)(INSTRUCTION_ADDRESS, opcode, 0x00AB);
     mem_write(0x00AB, 0x00);
     cpu_cycle(cycles);
-    ASSERT(msg, mem_read_8(0x00AB) == 0x00);
+    ASSERT(msg, mem_read(0x00AB) == 0x00);
     ASSERT(msg, !flg_is_C());
     ASSERT(msg,  flg_is_Z());
     ASSERT(msg, !flg_is_N());
@@ -778,7 +778,7 @@ static char *test_lsr(byte opcode, int cycles, char *msg, LoadAddress load) {
     (*load)(INSTRUCTION_ADDRESS, opcode, 0x00AB);
     mem_write(0x00AB, 0x31);
     cpu_cycle(cycles);
-    ASSERT(msg, mem_read_8(0x00AB) == 0x18);
+    ASSERT(msg, mem_read(0x00AB) == 0x18);
     ASSERT(msg,  flg_is_C());
     ASSERT(msg, !flg_is_Z());
     ASSERT(msg, !flg_is_N());
@@ -787,7 +787,7 @@ static char *test_lsr(byte opcode, int cycles, char *msg, LoadAddress load) {
     (*load)(INSTRUCTION_ADDRESS, opcode, 0x00AB);
     mem_write(0x00AB, 0x01);
     cpu_cycle(cycles);
-    ASSERT(msg, mem_read_8(0x00AB) == 0x00);
+    ASSERT(msg, mem_read(0x00AB) == 0x00);
     ASSERT(msg,  flg_is_C());
     ASSERT(msg,  flg_is_Z());
     ASSERT(msg, !flg_is_N());
@@ -825,14 +825,14 @@ static char *test_op_48(void) { /* PHA, Implied. */
     load_accumulator(INSTRUCTION_ADDRESS, 0x48, 0x33);
     cpu_cycle(3);
     ASSERT("PHA, Implied (0x48)", wait_cycles == 0);
-    ASSERT("PHA, Implied (0x48)", mem_read_8(0x1FF) == 0x33);
+    ASSERT("PHA, Implied (0x48)", mem_read(0x1FF) == 0x33);
     ASSERT("PHA, Implied (0x48)", cpu.S == 0xFE);
 
     /* Wrap around. */
     load_accumulator(INSTRUCTION_ADDRESS, 0x48, 0x44);
     cpu.S = 0x00;
     cpu_cycle(3);
-    ASSERT("PHA, Implied (0x48)", mem_read_8(0x100) == 0x44);
+    ASSERT("PHA, Implied (0x48)", mem_read(0x100) == 0x44);
     ASSERT("PHA, Implied (0x48)", cpu.S == 0xFF);
 
     return 0;
@@ -843,7 +843,7 @@ static char *test_op_08(void) { /* PHP, Implied. */
     load_implied(INSTRUCTION_ADDRESS, 0x08);
     cpu_cycle(3);
     ASSERT("PHP, Implied (0x08)", wait_cycles == 0);
-    ASSERT("PHP, Implied (0x08)", mem_read_8(0x1FF) == 0x30);
+    ASSERT("PHP, Implied (0x08)", mem_read(0x1FF) == 0x30);
     ASSERT("PHP, Implied (0x08)", cpu.S == 0xFE);
 
     /* Negative and decimal mode flag set. */
@@ -851,21 +851,21 @@ static char *test_op_08(void) { /* PHP, Implied. */
     flg_set_N();
     flg_set_D();
     cpu_cycle(3);
-    ASSERT("PHP, Implied (0x08)", mem_read_8(0x1FF) == 0xB8);
+    ASSERT("PHP, Implied (0x08)", mem_read(0x1FF) == 0xB8);
 
     /* Overflow and interrupt disable set. */
     load_implied(INSTRUCTION_ADDRESS, 0x08);
     flg_set_V();
     flg_set_I();
     cpu_cycle(3);
-    ASSERT("PHP, Implied (0x08)", mem_read_8(0x1FF) == 0x74);
+    ASSERT("PHP, Implied (0x08)", mem_read(0x1FF) == 0x74);
 
     /* Zero and carry flag set. */
     load_implied(INSTRUCTION_ADDRESS, 0x08);
     flg_set_C();
     flg_set_Z();
     cpu_cycle(3);
-    ASSERT("PHP, Implied (0x08)", mem_read_8(0x1FF) == 0x33);
+    ASSERT("PHP, Implied (0x08)", mem_read(0x1FF) == 0x33);
 
     /* All flags set. */
     load_implied(INSTRUCTION_ADDRESS, 0x08);
@@ -876,7 +876,7 @@ static char *test_op_08(void) { /* PHP, Implied. */
     flg_set_V();
     flg_set_N();
     cpu_cycle(3);
-    ASSERT("PHP, Implied (0x08)", mem_read_8(0x1FF) == 0xFF);
+    ASSERT("PHP, Implied (0x08)", mem_read(0x1FF) == 0xFF);
 
     return 0;
 }
@@ -1009,7 +1009,7 @@ static char *test_rol(byte opcode, int cycles, char *msg, LoadAddress load) {
     mem_write(0x00AB, 0x31);
     cpu_cycle(cycles);
     ASSERT(msg, wait_cycles == 0);
-    ASSERT(msg, mem_read_8(0x00AB) == 0x62);
+    ASSERT(msg, mem_read(0x00AB) == 0x62);
     ASSERT(msg, !flg_is_C());
     ASSERT(msg, !flg_is_Z());
     ASSERT(msg, !flg_is_N());
@@ -1018,7 +1018,7 @@ static char *test_rol(byte opcode, int cycles, char *msg, LoadAddress load) {
     (*load)(INSTRUCTION_ADDRESS, opcode, 0x00AB);
     mem_write(0x00AB, 0x88);
     cpu_cycle(cycles);
-    ASSERT(msg, mem_read_8(0x00AB) == 0x11);
+    ASSERT(msg, mem_read(0x00AB) == 0x11);
     ASSERT(msg,  flg_is_C());
     ASSERT(msg, !flg_is_Z());
     ASSERT(msg, !flg_is_N());
@@ -1027,7 +1027,7 @@ static char *test_rol(byte opcode, int cycles, char *msg, LoadAddress load) {
     (*load)(INSTRUCTION_ADDRESS, opcode, 0x00AB);
     mem_write(0x00AB, 0x00);
     cpu_cycle(cycles);
-    ASSERT(msg, mem_read_8(0x00AB) == 0x00);
+    ASSERT(msg, mem_read(0x00AB) == 0x00);
     ASSERT(msg, !flg_is_C());
     ASSERT(msg,  flg_is_Z());
     ASSERT(msg, !flg_is_N());
@@ -1036,7 +1036,7 @@ static char *test_rol(byte opcode, int cycles, char *msg, LoadAddress load) {
     (*load)(INSTRUCTION_ADDRESS, opcode, 0x00AB);
     mem_write(0x00AB, 0x78);
     cpu_cycle(cycles);
-    ASSERT(msg, mem_read_8(0x00AB) == 0xF0);
+    ASSERT(msg, mem_read(0x00AB) == 0xF0);
     ASSERT(msg, !flg_is_C());
     ASSERT(msg, !flg_is_Z());
     ASSERT(msg,  flg_is_N());
@@ -1079,7 +1079,7 @@ static char *test_ror(byte opcode, int cycles, char *msg, LoadAddress load) {
     mem_write(0x00AB, 0x82);
     cpu_cycle(cycles);
     ASSERT(msg, wait_cycles == 0);
-    ASSERT(msg, mem_read_8(0x00AB) == 0x41);
+    ASSERT(msg, mem_read(0x00AB) == 0x41);
     ASSERT(msg, !flg_is_C());
     ASSERT(msg, !flg_is_Z());
     ASSERT(msg, !flg_is_N());
@@ -1088,7 +1088,7 @@ static char *test_ror(byte opcode, int cycles, char *msg, LoadAddress load) {
     (*load)(INSTRUCTION_ADDRESS, opcode, 0x00AB);
     mem_write(0x00AB, 0x00);
     cpu_cycle(cycles);
-    ASSERT(msg, mem_read_8(0x00AB) == 0x00);
+    ASSERT(msg, mem_read(0x00AB) == 0x00);
     ASSERT(msg, !flg_is_C());
     ASSERT(msg,  flg_is_Z());
     ASSERT(msg, !flg_is_N());
@@ -1097,7 +1097,7 @@ static char *test_ror(byte opcode, int cycles, char *msg, LoadAddress load) {
     (*load)(INSTRUCTION_ADDRESS, opcode, 0x00AB);
     mem_write(0x00AB, 0x31);
     cpu_cycle(cycles);
-    ASSERT(msg, mem_read_8(0x00AB) == 0x98);
+    ASSERT(msg, mem_read(0x00AB) == 0x98);
     ASSERT(msg,  flg_is_C());
     ASSERT(msg, !flg_is_Z());
     ASSERT(msg,  flg_is_N());
@@ -1175,7 +1175,7 @@ static char *test_str(byte opcode, int cycles, char *msg, LoadAddress load, byte
     *store = 0x77;
     cpu_cycle(cycles);
     ASSERT(msg, wait_cycles == 0);
-    ASSERT(msg, mem_read_8(0x0012) == 0x77);
+    ASSERT(msg, mem_read(0x0012) == 0x77);
 
     return 0;
 }
