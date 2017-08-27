@@ -842,9 +842,9 @@ inline void cpu_suspend(int num_cycles) {
 }
 
 inline byte cpu_ram_read(word address) {
-    return cpu.ram[address & 0x7FF];
+    return cpu.ram[address];
 }
 
 inline void cpu_ram_write(word address, byte data) {
-    cpu.ram[address & 0x7FF] = data;
+    cpu.ram[address] = data;
 }

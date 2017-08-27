@@ -10,48 +10,50 @@
 
 typedef struct {
     /* PPU storage. */
-    byte nametable[2048];
-    byte palette[32];          /* PPU palettes (0x3F00 - 0x3F1F). */
-    byte oam[256];             /* Object Attribute Memory. */
+    byte nametable[2048];       /* PPU nametables. */
+    byte palette[32];           /* PPU palettes */
+    byte oam[256];              /* Object attribute memory. */
 
-    /* PPUCTRL (0x2000). */
-    bool ctrl_nmi;             /* Generate an NMI at the start of the VBI */
-    bool ctrl_master_slave;    /* PPU master/slave select. */
-    bool ctrl_sprite_size;     /* Sprite size (0: 8x8; 1: 8x16). */
-    bool ctrl_background_addr; /* Background pattern table address (high bit). */
-    bool ctrl_sprite_addr;     /* Sprite pattern table address for 8x8 sprites (high bit). */
-    byte ctrl_increment;       /* VRAM address increment per CPU read/write of PPUDATA (1 or 32). */
-    byte ctrl_nametable_addr;  /* Base nametable address (0: 0x2000; 1: 0x2400; 2: 0x2800; 3: 0x2C00). */
+    /* 0x2000: PPU control register 1. */
+    bool ctrl_nmi;              /* Generate an NMI at start of VBI */
+    bool ctrl_master_slave;     /* PPU master/slave select. */
+    bool ctrl_sprite_size;      /* Sprite size (0: 8x8; 1: 8x16). */
+    bool ctrl_background_addr;  /* Background pattern table address. */
+    bool ctrl_sprite_addr;      /* Sprite pattern table address. */
+    byte ctrl_increment;        /* VRAM address increment. */
+    byte ctrl_nametable_addr;   /* Base nametable address. */
 
-    /* PPUMASK (0x2001). */
-    bool mask_red;             /* Emphasize red (NTSC) or green (PAL). */
-    bool mask_green;           /* Emphasize green (NTSC) or red (PAL). */
-    bool mask_blue;            /* Emphasize blue. */
-    bool mask_sprites;         /* Render sprites. */
-    bool mask_background;      /* Render background. */
-    bool mask_sprites_L;       /* Render sprites in the leftmost column. */
-    bool mask_background_L;    /* Render background in the leftmost column. */
-    bool mask_grayscale;       /* Produce a grayscale display. */
+    /* 0x2001: PPU control register 2. */
+    bool mask_red;              /* Emphasize red (NTSC) or green (PAL). */
+    bool mask_green;            /* Emphasize green (NTSC) or red (PAL). */
+    bool mask_blue;             /* Emphasize blue. */
+    bool mask_sprites;          /* Render sprites. */
+    bool mask_background;       /* Render background. */
+    bool mask_sprites_L;        /* Render sprites in leftmost column. */
+    bool mask_background_L;     /* Render background in leftmost column. */
+    bool mask_grayscale;        /* Produce a grayscale display. */
 
-    /* PPUSTATUS (0x2002). */
-    bool stat_vblank;          /* Vertical blank has started. */
-    bool stat_sprite_hit;      /* Set when sprite 0 overlaps with a background pixel. */
-    bool stat_sprite_overflow; /* Set when more than 8 sprites appear on a scanline (buggy). */
+    /* 0x2002: PPU status register. */
+    bool status_vblank;         /* Vertical blank has started. */
+    bool status_zero_hit;       /* Set when sprite 0 overlaps with bg pixel. */
+    bool status_overflow;       /* Set when more than 8 sprites on scanline. */
 
-    /* OAMADDR (0x2003) and OAMDATA (0x2004). */
-    byte oam_addr;             /* OAM address (0x2003). */
-    byte oam_data;             /* OAM data (0x2004). */
+    /* 0x2003 - 0x2007: Other PPU I/O registers. */
+    byte oam_addr;              /* 0x2003: OAM address. */
+    byte oam_data;              /* 0x2004: OAM data. */
+    byte scroll_x;              /* 0x2005: Scroll position X. */
+    byte scroll_y;              /* 0x2005: Scroll position Y. */
+    byte vram_data;             /* 0x2007: PPU data. */
 
-    /* PPUADDR (0x2006) and PPUDATA (0x2007). */
-    word vram_addr;            /* PPU address register (0x2006). */
-    byte vram_data;            /* PPU data (0x2007). */
-    byte vram_buffer;          /* Internal read buffer. */
+    /* PPU internal registers. */
+    word v;                     /* Current VRAM address (15 bit). */
+    word t;                     /* Temporary VRAM address (15 bit). */
+    byte x;                     /* Fine X scroll (3 bits). */
+    bool w;                     /* First or second write toggle. */
 
-    byte scroll_x;             /* Fine scroll position (X) (0x2005). */
-    byte scroll_y;             /* Fine scroll position (Y) (0x2005). */
-
-    byte latch;                /* PPUGenLatch. */
-    bool write_toggle;         /* ... */
+    /* Other. */
+    byte vram_buffer;           /* Internal read buffer. */
+    byte latch;                 /* PPUGenLatch. */
 } PPU;
 
 static PPU ppu;
@@ -62,11 +64,11 @@ static PPU ppu;
 
 static inline byte read_ppu_status() {
     ppu.latch &= 0x1F;
-    ppu.latch |= (ppu.stat_vblank          << 7);
-    ppu.latch |= (ppu.stat_sprite_hit      << 6);
-    ppu.latch |= (ppu.stat_sprite_overflow << 5);
-    ppu.stat_vblank = false;
-    ppu.write_toggle = false;
+    ppu.latch |= (ppu.status_vblank   << 7);
+    ppu.latch |= (ppu.status_zero_hit << 6);
+    ppu.latch |= (ppu.status_overflow << 5);
+    ppu.status.vblank = false;
+    ppu.w = false;
     return ppu.latch;
 }
 
@@ -76,16 +78,16 @@ static inline byte read_oam_data() {
 }
 
 static inline byte read_ppu_data() {
-    if (ppu.vram_addr % 0x4000 < 0x3F00) {
+    if (ppu.v % 0x4000 < 0x3F00) {
         ppu.latch = ppu.vram_buffer;
-        ppu.vram_buffer = vrm_read(ppu.vram_addr);
+        ppu.vram_buffer = vrm_read(ppu.v);
     }
     else {
-        ppu.latch = vrm_read(ppu.vram_addr);
-        ppu.vram_buffer = vrm_read(ppu.vram_addr - 0x1000);
+        ppu.latch = vrm_read(ppu.v);
+        ppu.vram_buffer = vrm_read(ppu.v - 0x1000);
     }
 
-    ppu.vram_addr += ppu.ctrl_increment;
+    ppu.v += ppu.ctrl.increment;
     return ppu.latch;
 }
 
@@ -97,6 +99,7 @@ static inline void write_ppu_ctrl(byte data) {
     ppu.ctrl_sprite_addr     = data & 0x08;
     ppu.ctrl_increment       = data & 0x04 ? 32 : 1;
     ppu.ctrl_nametable_addr  = data & 0x03;
+    ppu.t = (ppu.t & 0x73FF) | ((data & 0x3) << 10);
 }
 
 static inline void write_ppu_mask(byte data) {
@@ -111,7 +114,7 @@ static inline void write_ppu_mask(byte data) {
 }
 
 static inline void write_oam_address(byte data) {
-   ppu.oam_addr = data; 
+    ppu.oam_addr = data; 
 }
 
 static inline void write_oam_data(byte data) {
@@ -119,24 +122,32 @@ static inline void write_oam_data(byte data) {
 }
 
 static inline void write_ppu_scroll(byte data) {
-    if (ppu.write_toggle) {
+    if (ppu.w) {
+        ppu.t = (ppu.t & 0x8FFF) | ((data & 0x07) << 12);
+        ppu.t = (ppu.t & 0xFC1F) | ((data & 0xF8) << 2);
         ppu.scroll_y = data;
     } else {
+        ppu.t = (ppu.t & 0xFFE0) | (data >> 3);
+        ppu.x = data & 0x03;
         ppu.scroll_x = data;
     }
-    ppu.write_toggle = !ppu.write_toggle;
+    ppu.w = !ppu.w;
 }
 
 static inline void write_ppu_address(byte data) {
-    if (ppu.write_toggle) {
-        ppu.vram_addr = (ppu.latch << 8) | data;
+    if (ppu.w) {
+        ppu.t = (ppu.t & 0xFF00) | data;
+        ppu.v = ppu.t;
     }
-    ppu.write_toggle = !ppu.write_toggle;
+    else {
+        ppu.t = (ppu.t & 0x00FF) | ((data & 0x3F) << 8);
+    }
+    ppu.w = !ppu.w;
 }
 
 static inline void write_ppu_data(byte data) {
-    vrm_write(ppu.vram_addr, data);
-    ppu.vram_addr += ppu.ctrl_increment;
+    vrm_write(ppu.v, data);
+    ppu.v += ppu.ctrl_increment;
 }
 
 inline byte ppu_io_read(word address) {

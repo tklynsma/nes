@@ -11,16 +11,21 @@ inline void mem_init(void) {
 }
 
 inline byte mem_read(word address) {
-    if (address < 0x2000) {             /* 0x0000 - 0x1FFF */
-        return cpu_ram_read(address);
+    /* 0x0000 - 0x1FFF: RAM. */
+    if (address < 0x2000) {
+        return cpu_ram_read(address & 0x7FF);
     }
-    else if (address < 0x4000) {        /* 0x2000 - 0x3FFF */
+
+    /* 0x2000 - 0x401F: I/O registers. */
+    else if (address < 0x4000) {
         return ppu_io_read(address);
     }
-    else if (address == 0x4014) {       /* 0x4014: OAM DMA */
+    else if (address == 0x4014) {
         return ppu_dma_read();
     }
-    else {                              /* TODO */
+
+    /* TODO: the rest. */
+    else {
         return memory[address];
     }
 }
@@ -30,16 +35,21 @@ inline word mem_read_16(word address) {
 }
 
 inline void mem_write(word address, byte data) {
-    if (address < 0x2000) {             /* 0x0000 - 0x1FFF */
-        cpu_ram_write(address, data);
+    /* 0x0000 - 0x1FFF: RAM. */
+    if (address < 0x2000) {
+        cpu_ram_write(address & 0x7FF, data);
     }
-    else if (address < 0x4000) {        /* 0x2000 - 0x3FFF */
+
+    /* 0x2000 - 0x401F: I/O registers. */
+    else if (address < 0x4000) {
         ppu_io_write(address, data);
     }
-    else if (address == 0x4014) {       /* 0x4014: OAM DMA */
+    else if (address == 0x4014) {
         ppu_dma_write(data);
     }
-    else {                              /* TODO */
+
+    /* TODO: the rest. */
+    else {
         memory[address] = data;
     }
 }

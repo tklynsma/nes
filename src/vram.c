@@ -29,7 +29,7 @@ inline void vrm_set_mode(MirrorMode mode_) {
 inline byte vrm_read(word address) {
     address &= 0x3FFF;
 
-    /* 0x0000 - 0x1FFF: Pattern tables. */
+    /* 0x0000 - 0x1FFF: Pattern tables (TODO). */
     if (address < 0x2000) {
         return vram[address];
     }
@@ -52,7 +52,7 @@ inline byte vrm_read(word address) {
 inline void vrm_write(word address, byte data) {
     address &= 0x3FFF;
 
-    /* 0x0000 - 0x1FFF: Pattern tables. */
+    /* 0x0000 - 0x1FFF: Pattern tables (TODO). */
     if (address < 0x2000) {
         vram[address] = data;
     }
