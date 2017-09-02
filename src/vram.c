@@ -1,7 +1,9 @@
+#include <stdio.h>
+#include <stdlib.h>
+
+#include "../include/mmc.h"
 #include "../include/ppu.h"
 #include "../include/vram.h"
-
-static byte vram[0x2000];
 
 static MirrorMode mode;
 static int mirror_lookup_table[4][4] = {
@@ -16,12 +18,6 @@ static inline word mirror(word address) {
     return mirror_lookup_table[mode][address >> 10] + (address & 0x3FF);
 }
 
-inline void vrm_init(void) {
-    for (int i = 0; i < 0x2000; i++) {
-        vram[i] = 0x00;
-    }
-}
-
 inline void vrm_set_mode(MirrorMode mode_) {
     mode = mode_;
 }
@@ -31,13 +27,13 @@ inline byte vrm_read(word address) {
 
     /* 0x0000 - 0x1FFF: Pattern tables (TODO). */
     if (address < 0x2000) {
-        return vram[address];
+        return mmc_ppu_read(address);
     }
 
     /* 0x2000 - 0x3EFF: Nametables. */
     else if (address < 0x3F00) {
         if (mode == MMC) {
-            return 0x00; /* TODO */
+            return mmc_ppu_read(address);
         }
         else {
             address = mirror(address);
@@ -46,7 +42,9 @@ inline byte vrm_read(word address) {
     }
 
     /* 0x3F00 - 0x3FFF: Palettes. */
-    return ppu_palette_read(address & 0x1F);
+    else {
+        return ppu_palette_read(address & 0x1F);
+    }
 }
 
 inline void vrm_write(word address, byte data) {
@@ -54,13 +52,13 @@ inline void vrm_write(word address, byte data) {
 
     /* 0x0000 - 0x1FFF: Pattern tables (TODO). */
     if (address < 0x2000) {
-        vram[address] = data;
+        mmc_ppu_write(address, data);
     }
 
     /* 0x2000 - 0x3EFF: Nametables. */
     else if (address < 0x3F00) {
         if (mode == MMC) {
-            /* ... */
+            mmc_ppu_write(address, data);
         }
         else {
             address = mirror(address);

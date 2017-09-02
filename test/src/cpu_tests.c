@@ -1,8 +1,34 @@
+#include <stdlib.h>
+#include "../../include/cartridge.h"
+#include "../../include/cpu.h"
 #include "../../include/cpu_flags.h"
+#include "../../include/cpu_internal.h"
 #include "../../include/memory.h"
-#include "../../src/cpu.c"
+#include "../../include/mmc.h"
 #include "../include/cpu_tests.h"
 #include "../include/test_unit.h"
+
+/* -----------------------------------------------------------------
+ * Setup for tests.
+ * -------------------------------------------------------------- */
+
+static void setup(void) {
+    Cartridge *cartridge = malloc(sizeof(Cartridge));
+    cartridge->prg_rom = malloc(2 * PRG_BANK_SIZE);
+    cartridge->mapper = 0;
+    cartridge->prg_banks = 2;
+
+    for (int i = 0; i < 2 * PRG_BANK_SIZE; i++) {
+        cartridge->prg_rom[i] = 0x00;
+    }
+
+    /* Set IQR/BRK vector to 0x1234. */
+    cartridge->prg_rom[2 * PRG_BANK_SIZE - 2] = 0x34;
+    cartridge->prg_rom[2 * PRG_BANK_SIZE - 1] = 0x12;
+
+    mmc_init(cartridge);
+    cpu_init();
+}
 
 /* -----------------------------------------------------------------
  * Help functions for loading instructions.
@@ -11,11 +37,12 @@
 static const word INSTRUCTION_ADDRESS = 0x0200;
 
 typedef bool (*Bool)(void);
+typedef void (*Function)(void);
 typedef void (*LoadOperand)(word, byte, byte, byte);
 typedef void (*LoadAddress)(word, byte, word);
 
 static inline void load_absolute(word pc, byte op, byte arg, byte acc) {
-    cpu_reset();
+    cpu_init();
     cpu.PC = pc;
     mem_write(pc, op);
     mem_write(pc + 1, 0x34);
@@ -25,7 +52,7 @@ static inline void load_absolute(word pc, byte op, byte arg, byte acc) {
 }
 
 static inline void load_absolute_addr(word pc, byte op, word address) {
-    cpu_reset();
+    cpu_init();
     cpu.PC = pc;
     mem_write(pc, op);
     mem_write(pc + 1, address & 0xFF);
@@ -33,7 +60,7 @@ static inline void load_absolute_addr(word pc, byte op, word address) {
 }
 
 static inline void load_absolute_x(word pc, byte op, byte arg, byte acc) {
-    cpu_reset();
+    cpu_init();
     cpu.PC = pc;
     mem_write(pc, op);
     mem_write(pc + 1, 0x00);
@@ -44,7 +71,7 @@ static inline void load_absolute_x(word pc, byte op, byte arg, byte acc) {
 }
 
 static inline void load_absolute_x_addr(word pc, byte op, word address) {
-    cpu_reset();
+    cpu_init();
     cpu.PC = pc;
     mem_write(pc, op);
     mem_write(pc + 1, address & 0xFF);
@@ -53,7 +80,7 @@ static inline void load_absolute_x_addr(word pc, byte op, word address) {
 }
 
 static inline void load_absolute_x_page(word pc, byte op, byte arg, byte acc) {
-    cpu_reset();
+    cpu_init();
     cpu.PC = pc;
     mem_write(pc, op);
     mem_write(pc + 1, 0xFF);
@@ -64,7 +91,7 @@ static inline void load_absolute_x_page(word pc, byte op, byte arg, byte acc) {
 }
 
 static inline void load_absolute_y(word pc, byte op, byte arg, byte acc) {
-    cpu_reset();
+    cpu_init();
     cpu.PC = pc;
     mem_write(pc, op);
     mem_write(pc + 1, 0x00);
@@ -75,7 +102,7 @@ static inline void load_absolute_y(word pc, byte op, byte arg, byte acc) {
 }
 
 static inline void load_absolute_y_addr(word pc, byte op, word address) {
-    cpu_reset();
+    cpu_init();
     cpu.PC = pc;
     mem_write(pc, op);
     mem_write(pc + 1, address & 0xFF);
@@ -84,7 +111,7 @@ static inline void load_absolute_y_addr(word pc, byte op, word address) {
 }
 
 static inline void load_absolute_y_page(word pc, byte op, byte arg, byte acc) {
-    cpu_reset();
+    cpu_init();
     cpu.PC = pc;
     mem_write(pc, op);
     mem_write(pc + 1, 0xFF);
@@ -95,14 +122,14 @@ static inline void load_absolute_y_page(word pc, byte op, byte arg, byte acc) {
 }
 
 static inline void load_accumulator(word pc, byte op, byte acc) {
-    cpu_reset();
+    cpu_init();
     cpu.PC = pc;
     mem_write(pc, op);
     cpu.A = acc;
 }
 
 static inline void load_immediate(word pc, byte op, byte arg, byte acc) {
-    cpu_reset();
+    cpu_init();
     cpu.PC = pc;
     mem_write(pc, op);
     mem_write(pc + 1, arg);
@@ -110,13 +137,13 @@ static inline void load_immediate(word pc, byte op, byte arg, byte acc) {
 }
 
 static inline void load_implied(word pc, byte op) {
-    cpu_reset();
+    cpu_init();
     cpu.PC = pc;
     mem_write(pc, op);
 }
 
 static inline void load_indirect_addr(word pc, byte op, word address) {
-    cpu_reset();
+    cpu_init();
     cpu.PC = pc;
     mem_write(pc, op);
     mem_write(pc + 1, 0x34);
@@ -126,7 +153,7 @@ static inline void load_indirect_addr(word pc, byte op, word address) {
 }
 
 static inline void load_indirect_x(word pc, byte op, byte arg, byte acc) {
-    cpu_reset();
+    cpu_init();
     cpu.PC = pc;
     mem_write(pc, op);
     mem_write(pc + 1, 0xA0);
@@ -138,7 +165,7 @@ static inline void load_indirect_x(word pc, byte op, byte arg, byte acc) {
 }
 
 static inline void load_indirect_x_addr(word pc, byte op, word address) {
-    cpu_reset();
+    cpu_init();
     cpu.PC = pc;
     mem_write(pc, op);
     mem_write(pc + 1, 0xA0);
@@ -148,7 +175,7 @@ static inline void load_indirect_x_addr(word pc, byte op, word address) {
 }
 
 static inline void load_indirect_y(word pc, byte op, byte arg, byte acc) {
-    cpu_reset();
+    cpu_init();
     cpu.PC = pc;
     mem_write(pc, op);
     mem_write(pc + 1, 0xAB);
@@ -160,7 +187,7 @@ static inline void load_indirect_y(word pc, byte op, byte arg, byte acc) {
 }
 
 static inline void load_indirect_y_addr(word pc, byte op, word address) {
-    cpu_reset();
+    cpu_init();
     cpu.PC = pc;
     mem_write(pc, op);
     mem_write(pc + 1, 0xAB);
@@ -170,7 +197,7 @@ static inline void load_indirect_y_addr(word pc, byte op, word address) {
 }
 
 static inline void load_indirect_y_page(word pc, byte op, byte arg, byte acc) {
-    cpu_reset();
+    cpu_init();
     cpu.PC = pc;
     mem_write(pc, op);
     mem_write(pc + 1, 0xAB);
@@ -186,7 +213,7 @@ static inline void load_relative(word pc, byte op, byte arg) {
 }
 
 static inline void load_zero_page(word pc, byte op, byte arg, byte acc) {
-    cpu_reset();
+    cpu_init();
     cpu.PC = pc;
     mem_write(pc, op);
     mem_write(pc + 1, 0xAB);
@@ -195,14 +222,14 @@ static inline void load_zero_page(word pc, byte op, byte arg, byte acc) {
 }
 
 static inline void load_zero_page_addr(word pc, byte op, word address) {
-    cpu_reset();
+    cpu_init();
     cpu.PC = pc;
     mem_write(pc, op);
     mem_write(pc + 1, address & 0xFF);
 }
 
 static inline void load_zero_page_x(word pc, byte op, byte arg, byte acc) {
-    cpu_reset();
+    cpu_init();
     cpu.PC = pc;
     mem_write(pc, op);
     mem_write(pc + 1, 0xA0);
@@ -212,7 +239,7 @@ static inline void load_zero_page_x(word pc, byte op, byte arg, byte acc) {
 }
 
 static inline void load_zero_page_xy_addr(word pc, byte op, word address) {
-    cpu_reset();
+    cpu_init();
     cpu.PC = pc;
     mem_write(pc, op);
     mem_write(pc + 1, address & 0xFF);
@@ -221,7 +248,7 @@ static inline void load_zero_page_xy_addr(word pc, byte op, word address) {
 }
 
 static inline void load_zero_page_y(word pc, byte op, byte arg, byte acc) {
-    cpu_reset();
+    cpu_init();
     cpu.PC = pc;
     mem_write(pc, op);
     mem_write(pc + 1, 0xA0);
@@ -239,7 +266,7 @@ static char *test_adc(byte opcode, int cycles, char *msg, LoadOperand load) {
     (*load)(INSTRUCTION_ADDRESS, opcode, 0x0F, 0x05);
     flg_set_C();
     cpu_cycle(cycles);
-    ASSERT(msg, wait_cycles == 0);
+    ASSERT(msg, cpu_get_wait_ticks() == 0);
     ASSERT(msg, cpu.A == 0x15);
     ASSERT(msg, !flg_is_C());
     ASSERT(msg, !flg_is_Z());
@@ -303,7 +330,7 @@ static char *test_and(byte opcode, int cycles, char *msg, LoadOperand load) {
     /* No flags set. */
     (*load)(INSTRUCTION_ADDRESS, opcode, 0x77, 0xBB);
     cpu_cycle(cycles);
-    ASSERT(msg, wait_cycles == 0);
+    ASSERT(msg, cpu_get_wait_ticks() == 0);
     ASSERT(msg, cpu.A == 0x33);
     ASSERT(msg, !flg_is_Z());
     ASSERT(msg, !flg_is_N());
@@ -329,7 +356,7 @@ static char *test_op_0A(void) { /* ASL, Accumulator. */
     /* No flags set. */
     load_accumulator(INSTRUCTION_ADDRESS, 0x0A, 0x03);
     cpu_cycle(2);
-    ASSERT("ASL, Accumulator (0x0A)", wait_cycles == 0);
+    ASSERT("ASL, Accumulator (0x0A)", cpu_get_wait_ticks() == 0);
     ASSERT("ASL, Accumulator (0x0A)", cpu.A == 0x06);
     ASSERT("ASL, Accumulator (0x0A)", !flg_is_C());
     ASSERT("ASL, Accumulator (0x0A)", !flg_is_Z());
@@ -359,7 +386,7 @@ static char *test_asl(byte opcode, int cycles, char *msg, LoadAddress load) {
     (*load)(INSTRUCTION_ADDRESS, opcode, 0x00AB);
     mem_write(0x00AB, 0x03);
     cpu_cycle(cycles);
-    ASSERT(msg, wait_cycles == 0);
+    ASSERT(msg, cpu_get_wait_ticks() == 0);
     ASSERT(msg, mem_read(0x00AB) == 0x06);
     ASSERT(msg, !flg_is_C());
     ASSERT(msg, !flg_is_Z());
@@ -391,35 +418,35 @@ static char *test_brc(byte opcode, char *msg, Function set, Function clear) {
     load_relative(INSTRUCTION_ADDRESS, opcode, 0x75);
     (*clear)();
     cpu_cycle(2);
-    ASSERT(msg, wait_cycles == 0);
+    ASSERT(msg, cpu_get_wait_ticks() == 0);
     ASSERT(msg, cpu.PC == INSTRUCTION_ADDRESS + 2);
 
     /* Branching succeeds, positive offset, no page crossed. */
     load_relative(INSTRUCTION_ADDRESS + 0xFE, opcode, 0x77);
     (*set)();
     cpu_cycle(3);
-    ASSERT(msg, wait_cycles == 0);
+    ASSERT(msg, cpu_get_wait_ticks() == 0);
     ASSERT(msg, cpu.PC == INSTRUCTION_ADDRESS + 0x177);
 
     /* Branching succeeds, negative offset, no page crossed. */
     load_relative(INSTRUCTION_ADDRESS + 0x75, opcode, 0x89);
     (*set)();
     cpu_cycle(3);
-    ASSERT(msg, wait_cycles == 0);
+    ASSERT(msg, cpu_get_wait_ticks() == 0);
     ASSERT(msg, cpu.PC == INSTRUCTION_ADDRESS);
 
     /* Branching succeeds, positive offset, page crossed. */
     load_relative(INSTRUCTION_ADDRESS + 0xFD, opcode, 0x01);
     (*set)();
     cpu_cycle(4);
-    ASSERT(msg, wait_cycles == 0);
+    ASSERT(msg, cpu_get_wait_ticks() == 0);
     ASSERT(msg, cpu.PC == INSTRUCTION_ADDRESS + 0x100);
 
     /* Branching succeeds, negative offset, page crossed. */
     load_relative(INSTRUCTION_ADDRESS, opcode, 0xFD);
     (*set)();
     cpu_cycle(4);
-    ASSERT(msg, wait_cycles == 0);
+    ASSERT(msg, cpu_get_wait_ticks() == 0);
     ASSERT(msg, cpu.PC == INSTRUCTION_ADDRESS - 1);
 
     return 0;
@@ -429,7 +456,7 @@ static char *test_bit(byte opcode, int cycles, char *msg, LoadOperand load) {
     /* No flags set. */
     (*load)(INSTRUCTION_ADDRESS, opcode, 0xFF, 0x03);
     cpu_cycle(cycles);
-    ASSERT(msg, wait_cycles == 0);
+    ASSERT(msg, cpu_get_wait_ticks() == 0);
     ASSERT(msg, !flg_is_Z());
     ASSERT(msg, !flg_is_V());
     ASSERT(msg, !flg_is_N());
@@ -460,12 +487,12 @@ static char *test_bit(byte opcode, int cycles, char *msg, LoadOperand load) {
 
 static char *test_op_00_40(void) { /* BRK and RTI. */
     load_implied(INSTRUCTION_ADDRESS, 0x00);
-    mem_write(0xFFFE, 0x34);
-    mem_write(0xFFFF, 0x12);
+    cpu.S = 0xFF;
+    flg_reset();
     flg_set_V();
     flg_set_Z();
     cpu_cycle(7);
-    ASSERT("BRK, Implied (0x00)", wait_cycles == 0);
+    ASSERT("BRK, Implied (0x00)", cpu_get_wait_ticks() == 0);
     ASSERT("BRK, Implied (0x00)", cpu.PC == 0x1234);
     ASSERT("BRK, Implied (0x00)", mem_read_16(0x1FE) == INSTRUCTION_ADDRESS + 2);
     ASSERT("BRK, Implied (0x00)", mem_read(0x1FD) == 0x72);
@@ -477,7 +504,7 @@ static char *test_op_00_40(void) { /* BRK and RTI. */
     flg_set_C();
     flg_set_N();
     cpu_cycle(6);
-    ASSERT("RTI, Implied (0x40)", wait_cycles == 0);
+    ASSERT("RTI, Implied (0x40)", cpu_get_wait_ticks() == 0);
     ASSERT("RTI, Implied (0x40)", cpu.PC == INSTRUCTION_ADDRESS + 2);
     ASSERT("RTI, Implied (0x40)", cpu.S == 0xFF);
     ASSERT("RTI, Implied (0x40)", !flg_is_C());
@@ -494,7 +521,7 @@ static char *test_clr(byte opcode, char *msg, Function set, Bool check) {
     load_implied(INSTRUCTION_ADDRESS, opcode);
     (*set)();
     cpu_cycle(2);
-    ASSERT(msg, wait_cycles == 0);
+    ASSERT(msg, cpu_get_wait_ticks() == 0);
     ASSERT(msg, !(*check)());
 
     return 0;
@@ -505,7 +532,7 @@ static char *test_cmp(byte opcode, int cycles, char *msg, LoadOperand load, byte
     (*load)(INSTRUCTION_ADDRESS, opcode, 0x76, 0x77);
     *reg = 0x77;
     cpu_cycle(cycles);
-    ASSERT(msg, wait_cycles == 0);
+    ASSERT(msg, cpu_get_wait_ticks() == 0);
     ASSERT(msg,  flg_is_C());
     ASSERT(msg, !flg_is_Z());
     ASSERT(msg, !flg_is_N());
@@ -533,7 +560,7 @@ static char *test_dec(byte opcode, int cycles, char *msg, LoadAddress load) {
     (*load)(INSTRUCTION_ADDRESS, opcode, 0x00AB);
     mem_write(0x00AB, 0x77);
     cpu_cycle(cycles);
-    ASSERT(msg, wait_cycles == 0);
+    ASSERT(msg, cpu_get_wait_ticks() == 0);
     ASSERT(msg, mem_read(0x00AB) == 0x76);
     ASSERT(msg, !flg_is_Z());
     ASSERT(msg, !flg_is_N());
@@ -561,7 +588,7 @@ static char *test_dex(byte opcode, char *msg, byte *reg) {
     load_implied(INSTRUCTION_ADDRESS, opcode);
     *reg = 0x77;
     cpu_cycle(2);
-    ASSERT(msg, wait_cycles == 0);
+    ASSERT(msg, cpu_get_wait_ticks() == 0);
     ASSERT(msg, *reg == 0x76);
     ASSERT(msg, !flg_is_Z());
     ASSERT(msg, !flg_is_N());
@@ -589,7 +616,7 @@ static char *test_eor(byte opcode, int cycles, char *msg, LoadOperand load) {
     /* No flags set. */
     (*load)(INSTRUCTION_ADDRESS, opcode, 0x03, 0x09);
     cpu_cycle(cycles);
-    ASSERT(msg, wait_cycles == 0);
+    ASSERT(msg, cpu_get_wait_ticks() == 0);
     ASSERT(msg, cpu.A == 0x0A);
     ASSERT(msg, !flg_is_Z());
     ASSERT(msg, !flg_is_N());
@@ -615,7 +642,7 @@ static char *test_inc(byte opcode, int cycles, char *msg, LoadAddress load) {
     (*load)(INSTRUCTION_ADDRESS, opcode, 0x00AB);
     mem_write(0x00AB, 0x77);
     cpu_cycle(cycles);
-    ASSERT(msg, wait_cycles == 0);
+    ASSERT(msg, cpu_get_wait_ticks() == 0);
     ASSERT(msg, mem_read(0x00AB) == 0x78);
     ASSERT(msg, !flg_is_Z());
     ASSERT(msg, !flg_is_N());
@@ -643,7 +670,7 @@ static char *test_inx(byte opcode, char *msg, byte *reg) {
     load_implied(INSTRUCTION_ADDRESS, opcode);
     *reg = 0x77;
     cpu_cycle(2);
-    ASSERT(msg, wait_cycles == 0);
+    ASSERT(msg, cpu_get_wait_ticks() == 0);
     ASSERT(msg, *reg == 0x78);
     ASSERT(msg, !flg_is_Z());
     ASSERT(msg, !flg_is_N());
@@ -670,20 +697,20 @@ static char *test_inx(byte opcode, char *msg, byte *reg) {
 static char *test_op_4C_6C() {
     load_absolute_addr(INSTRUCTION_ADDRESS, 0x4C, 0x1234);
     cpu_cycle(3);
-    ASSERT("JMP, Absolute (0x4C)", wait_cycles == 0);
+    ASSERT("JMP, Absolute (0x4C)", cpu_get_wait_ticks() == 0);
     ASSERT("JMP, Absolute (0x4C)", cpu.PC == 0x1234);
 
-    load_absolute_addr(INSTRUCTION_ADDRESS, 0x6C, 0xC0FE);
-    mem_write(0xC0FE, 0x34);
-    mem_write(0xC0FF, 0x12);
+    load_absolute_addr(INSTRUCTION_ADDRESS, 0x6C, 0x03FE);
+    mem_write(0x03FE, 0x34);
+    mem_write(0x03FF, 0x12);
     cpu_cycle(5);
-    ASSERT("JMP, Indirect (0x6C)", wait_cycles == 0);
+    ASSERT("JMP, Indirect (0x6C)", cpu_get_wait_ticks() == 0);
     ASSERT("JMP, Indirect (0x6C)", cpu.PC == 0x1234);
 
     /* JMP Indirect hardware bug. */
-    load_absolute_addr(INSTRUCTION_ADDRESS, 0x6C, 0xC0FF);
-    mem_write(0xC0FF, 0x34);
-    mem_write(0xC000, 0x12);
+    load_absolute_addr(INSTRUCTION_ADDRESS, 0x6C, 0x03FF);
+    mem_write(0x03FF, 0x34);
+    mem_write(0x0300, 0x12);
     cpu_cycle(5);
     ASSERT("JMP, Indirect (0x6C)", cpu.PC == 0x1234);
 
@@ -692,15 +719,16 @@ static char *test_op_4C_6C() {
 
 static char *test_op_20_60(void) { /* JSR and RTS. */
     load_absolute_addr(INSTRUCTION_ADDRESS, 0x20, 0x1234);
+    cpu.S = 0xFF;
     cpu_cycle(6);
-    ASSERT("JSR, Absolute (0x20)", wait_cycles == 0);
+    ASSERT("JSR, Absolute (0x20)", cpu_get_wait_ticks() == 0);
     ASSERT("JSR, Absolute (0x20)", mem_read_16(0x1FE) == INSTRUCTION_ADDRESS + 3);
     ASSERT("JSR, Absolute (0x20)", cpu.PC == 0x1234);
     ASSERT("JSR, Absolute (0x20)", cpu.S == 0xFD);
 
     mem_write(0x1234, 0x60);
     cpu_cycle(6);
-    ASSERT("RTS, Implied (0x60)", wait_cycles == 0);
+    ASSERT("RTS, Implied (0x60)", cpu_get_wait_ticks() == 0);
     ASSERT("RTS, Implied (0x60)", cpu.PC == INSTRUCTION_ADDRESS + 3);
     ASSERT("RTS, Implied (0x60)", cpu.S == 0xFF);
 
@@ -711,7 +739,7 @@ static char *test_lda(byte opcode, int cycles, char *msg, LoadOperand load, byte
     (*load)(INSTRUCTION_ADDRESS, opcode, 0x77, 0x00);
     *reg = 0x00;
     cpu_cycle(cycles);
-    ASSERT(msg, wait_cycles == 0);
+    ASSERT(msg, cpu_get_wait_ticks() == 0);
     ASSERT(msg, *reg = 0x77);
 
     return 0;
@@ -721,7 +749,7 @@ static char *test_op_4A(void) { /* LSR, Accumulator. */
     /* No flags set. */
     load_accumulator(INSTRUCTION_ADDRESS, 0x4A, 0x82);
     cpu_cycle(2);
-    ASSERT("LSR, Accumulator (0x4A)", wait_cycles == 0);
+    ASSERT("LSR, Accumulator (0x4A)", cpu_get_wait_ticks() == 0);
     ASSERT("LSR, Accumulator (0x4A)", cpu.A == 0x41);
     ASSERT("LSR, Accumulator (0x4A)", !flg_is_C());
     ASSERT("LSR, Accumulator (0x4A)", !flg_is_Z());
@@ -759,7 +787,7 @@ static char *test_lsr(byte opcode, int cycles, char *msg, LoadAddress load) {
     (*load)(INSTRUCTION_ADDRESS, opcode, 0x00AB);
     mem_write(0x00AB, 0x82);
     cpu_cycle(cycles);
-    ASSERT(msg, wait_cycles == 0);
+    ASSERT(msg, cpu_get_wait_ticks() == 0);
     ASSERT(msg, mem_read(0x00AB) == 0x41);
     ASSERT(msg, !flg_is_C());
     ASSERT(msg, !flg_is_Z());
@@ -799,7 +827,7 @@ static char *test_ora(byte opcode, int cycles, char *msg, LoadOperand load) {
     /* No flags set. */
     (*load)(INSTRUCTION_ADDRESS, opcode, 0x03, 0x08);
     cpu_cycle(cycles);
-    ASSERT(msg, wait_cycles == 0);
+    ASSERT(msg, cpu_get_wait_ticks() == 0);
     ASSERT(msg, cpu.A == 0x0B);
     ASSERT(msg, !flg_is_Z());
     ASSERT(msg, !flg_is_N());
@@ -823,8 +851,9 @@ static char *test_ora(byte opcode, int cycles, char *msg, LoadOperand load) {
 
 static char *test_op_48(void) { /* PHA, Implied. */
     load_accumulator(INSTRUCTION_ADDRESS, 0x48, 0x33);
+    cpu.S = 0xFF;
     cpu_cycle(3);
-    ASSERT("PHA, Implied (0x48)", wait_cycles == 0);
+    ASSERT("PHA, Implied (0x48)", cpu_get_wait_ticks() == 0);
     ASSERT("PHA, Implied (0x48)", mem_read(0x1FF) == 0x33);
     ASSERT("PHA, Implied (0x48)", cpu.S == 0xFE);
 
@@ -841,13 +870,17 @@ static char *test_op_48(void) { /* PHA, Implied. */
 static char *test_op_08(void) { /* PHP, Implied. */
     /* No flags set. */
     load_implied(INSTRUCTION_ADDRESS, 0x08);
+    cpu.S = 0xFF;
+    flg_reset();
     cpu_cycle(3);
-    ASSERT("PHP, Implied (0x08)", wait_cycles == 0);
+    ASSERT("PHP, Implied (0x08)", cpu_get_wait_ticks() == 0);
     ASSERT("PHP, Implied (0x08)", mem_read(0x1FF) == 0x30);
     ASSERT("PHP, Implied (0x08)", cpu.S == 0xFE);
 
     /* Negative and decimal mode flag set. */
     load_implied(INSTRUCTION_ADDRESS, 0x08);
+    cpu.S = 0xFF;
+    flg_reset();
     flg_set_N();
     flg_set_D();
     cpu_cycle(3);
@@ -855,6 +888,8 @@ static char *test_op_08(void) { /* PHP, Implied. */
 
     /* Overflow and interrupt disable set. */
     load_implied(INSTRUCTION_ADDRESS, 0x08);
+    cpu.S = 0xFF;
+    flg_reset();
     flg_set_V();
     flg_set_I();
     cpu_cycle(3);
@@ -862,6 +897,8 @@ static char *test_op_08(void) { /* PHP, Implied. */
 
     /* Zero and carry flag set. */
     load_implied(INSTRUCTION_ADDRESS, 0x08);
+    cpu.S = 0xFF;
+    flg_reset();
     flg_set_C();
     flg_set_Z();
     cpu_cycle(3);
@@ -869,6 +906,8 @@ static char *test_op_08(void) { /* PHP, Implied. */
 
     /* All flags set. */
     load_implied(INSTRUCTION_ADDRESS, 0x08);
+    cpu.S = 0xFF;
+    flg_reset();
     flg_set_C();
     flg_set_Z();
     flg_set_I();
@@ -886,7 +925,7 @@ static char *test_op_68(void) { /* PLA, Implied. */
     mem_write(0x134, 0x44);
     cpu.S = 0x33;
     cpu_cycle(4);
-    ASSERT("PLA, Implied (0x68)", wait_cycles == 0);
+    ASSERT("PLA, Implied (0x68)", cpu_get_wait_ticks() == 0);
     ASSERT("PLA, Implied (0x68)", cpu.A == 0x44);
     ASSERT("PLA, Implied (0x68)", cpu.S == 0x34);
 
@@ -907,7 +946,7 @@ static char *test_op_28(void) { /* PLP, Implied. */
     mem_write(0x1FF, 0x00);
     cpu.S = 0xFE;
     cpu_cycle(4);
-    ASSERT("PLP, Implied (0x28)", wait_cycles == 0);
+    ASSERT("PLP, Implied (0x28)", cpu_get_wait_ticks() == 0);
     ASSERT("PLP, Implied (0x28)", !flg_is_C());
     ASSERT("PLP, Implied (0x28)", !flg_is_Z());
     ASSERT("PLP, Implied (0x28)", !flg_is_I());
@@ -970,7 +1009,7 @@ static char *test_op_2A(void) { /* ROL, Accumulator. */
     /* No flags set. */
     load_accumulator(INSTRUCTION_ADDRESS, 0x2A, 0x31);
     cpu_cycle(2);
-    ASSERT("ROL, Accumulator (0x2A)", wait_cycles == 0);
+    ASSERT("ROL, Accumulator (0x2A)", cpu_get_wait_ticks() == 0);
     ASSERT("ROL, Accumulator (0x2A)", cpu.A == 0x62);
     ASSERT("ROL, Accumulator (0x2A)", !flg_is_C());
     ASSERT("ROL, Accumulator (0x2A)", !flg_is_Z());
@@ -1008,7 +1047,7 @@ static char *test_rol(byte opcode, int cycles, char *msg, LoadAddress load) {
     (*load)(INSTRUCTION_ADDRESS, opcode, 0x00AB);
     mem_write(0x00AB, 0x31);
     cpu_cycle(cycles);
-    ASSERT(msg, wait_cycles == 0);
+    ASSERT(msg, cpu_get_wait_ticks() == 0);
     ASSERT(msg, mem_read(0x00AB) == 0x62);
     ASSERT(msg, !flg_is_C());
     ASSERT(msg, !flg_is_Z());
@@ -1048,7 +1087,7 @@ static char *test_op_6A(void) { /* ROR, Accumulator. */
     /* No flags set. */
     load_accumulator(INSTRUCTION_ADDRESS, 0x6A, 0x82);
     cpu_cycle(2);
-    ASSERT("ROR, Accumulator (0x6A)", wait_cycles == 0);
+    ASSERT("ROR, Accumulator (0x6A)", cpu_get_wait_ticks() == 0);
     ASSERT("ROR, Accumulator (0x6A)", cpu.A == 0x41);
     ASSERT("ROR, Accumulator (0x6A)", !flg_is_C());
     ASSERT("ROR, Accumulator (0x6A)", !flg_is_Z());
@@ -1078,7 +1117,7 @@ static char *test_ror(byte opcode, int cycles, char *msg, LoadAddress load) {
     (*load)(INSTRUCTION_ADDRESS, opcode, 0x00AB);
     mem_write(0x00AB, 0x82);
     cpu_cycle(cycles);
-    ASSERT(msg, wait_cycles == 0);
+    ASSERT(msg, cpu_get_wait_ticks() == 0);
     ASSERT(msg, mem_read(0x00AB) == 0x41);
     ASSERT(msg, !flg_is_C());
     ASSERT(msg, !flg_is_Z());
@@ -1110,7 +1149,7 @@ static char *test_sbc(byte opcode, int cycles, char *msg, LoadOperand load) {
     (*load)(INSTRUCTION_ADDRESS, opcode, 0x74, 0x77);
     flg_set_C();
     cpu_cycle(cycles);
-    ASSERT(msg, wait_cycles == 0);
+    ASSERT(msg, cpu_get_wait_ticks() == 0);
     ASSERT(msg, cpu.A == 0x03);
     ASSERT(msg,  flg_is_C());
     ASSERT(msg, !flg_is_Z());
@@ -1164,7 +1203,7 @@ static char *test_set(byte opcode, char *msg, Function clear, Bool check) {
     load_implied(INSTRUCTION_ADDRESS, opcode);
     (*clear)();
     cpu_cycle(2);
-    ASSERT(msg, wait_cycles == 0);
+    ASSERT(msg, cpu_get_wait_ticks() == 0);
     ASSERT(msg, (*check)());
 
     return 0;
@@ -1174,7 +1213,7 @@ static char *test_str(byte opcode, int cycles, char *msg, LoadAddress load, byte
     (*load)(INSTRUCTION_ADDRESS, opcode, 0x0012);
     *store = 0x77;
     cpu_cycle(cycles);
-    ASSERT(msg, wait_cycles == 0);
+    ASSERT(msg, cpu_get_wait_ticks() == 0);
     ASSERT(msg, mem_read(0x0012) == 0x77);
 
     return 0;
@@ -1185,7 +1224,7 @@ static char *test_trn(byte opcode, char *msg, byte *source, byte *dest, bool tes
     *source = 0x77;
     *dest = 0x00;
     cpu_cycle(2);
-    ASSERT(msg, wait_cycles == 0);
+    ASSERT(msg, cpu_get_wait_ticks() == 0);
     ASSERT(msg, *dest == 0x77);
 
     if (test_flags) {
@@ -1396,7 +1435,7 @@ static char *test_op_9A  (void) { return test_trn(0x9A,    "TXS, Implied (0x9A)"
 static char *test_op_98  (void) { return test_trn(0x98,    "TYA, Implied (0x98)",        &cpu.Y, &cpu.A, true ); }
 
 char *cpu_tests(void) {
-    cpu_init();
+    setup();
 
     RUN_TEST( test_op_69 );     /* ADC, Immediate. */
     RUN_TEST( test_op_65 );     /* ADC, Zero page. */

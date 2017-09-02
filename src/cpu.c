@@ -1,27 +1,23 @@
 #include "../include/common.h"
 #include "../include/cpu.h"
 #include "../include/cpu_flags.h"
+#include "../include/cpu_internal.h"
 #include "../include/memory.h"
 
 /* -----------------------------------------------------------------
- * CPU status.
+ * CPU variables.
  * -------------------------------------------------------------- */
 
-typedef struct {
-    word PC;             /* Program counter. */
-    byte S;              /* Stack pointer. */
-    byte A;              /* Accumulator. */
-    byte X, Y;           /* Index registers. */
-    byte ram[RAM_SIZE];  /* The CPU's RAM. */
-} CPU;
+CPU cpu;                    /* CPU status. */
 
-static CPU cpu;          /* The CPU status. */
-static byte operand;     /* Operand (8 bit) of the instruction. */
-static word address;     /* Operand (16 bit) of the instruction. */
+static byte operand;        /* Operand (8 bit) of the instruction. */
+static word address;        /* Operand (16 bit) of the instruction. */
 
-static int wait_cycles;  /* The number of cycles to wait till the next operation. */
-static int extra_cycles; /* The number of additional cycles to be added. */
+static int wait_cycles;     /* Number of cycles to wait till the next operation. */
+static int extra_cycles;    /* Number of additional cycles to be added. */
 static unsigned long long cycles; /* Total number of cycles run so far. */
+
+static bool initialized_table = false;
 
 /* -----------------------------------------------------------------
  * Stack operations.
@@ -224,7 +220,7 @@ static inline void bpl(void) {
 static inline void brk(void) {
     push_address(cpu.PC + 1);
     push(flg_get_status(true));
-    cpu.PC = mem_read_16(0xFFFE);
+    cpu.PC = mem_read_16(IRQ_VECTOR);
     flg_set_I();
 }
 
@@ -512,9 +508,9 @@ static inline void tya(void) {
     flg_update_ZN(cpu.A = cpu.Y);
 }
 
-/* ----------------------------------------------------------------- */
-/* CPU operation tables. */
-/* ----------------------------------------------------------------- */
+/* --------------------------------------------------------------------
+ * CPU operation tables.
+ * ----------------------------------------------------------------- */
 
 typedef void (*Function)(void);
 Function cpu_instruction_table[256];
@@ -803,18 +799,32 @@ static inline void init_instruction_table(void) {
  * -------------------------------------------------------------- */
 
 void cpu_reset(void) {
-    cpu = (CPU) { 0x0000, 0xFF, 0x00, 0x00, 0x00 };
+    cpu.S -= 3;
+    flg_set_I();
     wait_cycles = 0;
-    flg_reset();
+    /* ... */
 }
 
 void cpu_init(void) {
-    init_instruction_table();
-    cpu_reset();
+    /* Initialize instruction table. */
+    if (!initialized_table) {
+        init_instruction_table();
+    }
+    initialized_table = true;
 
+    /* Initialize CPU status. */
+    cpu = (CPU) { 0x0000, 0xFD, 0x00, 0x00, 0x00 };
+    cpu.PC = mem_read_16(RESET_VECTOR);
+    wait_cycles = 0;
+
+    /* Clear RAM. */
     for (int i = 0; i < RAM_SIZE; i++) {
         cpu.ram[i] = 0x00;
     }
+
+    /* Clear all flags; IRQ disabled. */
+    flg_reset();
+    flg_set_I();
 }
 
 void cpu_cycle(int num_cycles) {
@@ -835,6 +845,10 @@ void cpu_cycle(int num_cycles) {
 
 inline unsigned long long cpu_get_ticks(void) {
     return cycles;
+}
+
+inline int cpu_get_wait_ticks(void) {
+    return wait_cycles;
 }
 
 inline void cpu_suspend(int num_cycles) {

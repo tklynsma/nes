@@ -15,4 +15,6 @@ void ppu_palette_write(word address, byte data);
 byte ppu_nametable_read(word address);
 void ppu_nametable_write(word address, byte data);
 
+void ppu_render_frame(byte display[256][240]);
+
 #endif /* PPU_H */

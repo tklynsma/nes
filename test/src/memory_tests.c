@@ -3,8 +3,6 @@
 #include "../include/test_unit.h"
 
 char *test_mirror_0000_2000(void) {
-    mem_init();
-
     mem_write(0x0000, 0x77);
     ASSERT("Mirror 0x0000-0x2000", mem_read(0x0000) == 0x77);
     ASSERT("Mirror 0x0000-0x2000", mem_read(0x0800) == 0x77);

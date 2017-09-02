@@ -1,14 +1,7 @@
 #include "../include/cpu.h"
 #include "../include/memory.h"
+#include "../include/mmc.h"
 #include "../include/ppu.h"
-
-static byte memory[MEM_SIZE];
-
-inline void mem_init(void) {
-    for (int i = 0; i < MEM_SIZE; i++) {
-        memory[i] = 0x00;
-    }
-}
 
 inline byte mem_read(word address) {
     /* 0x0000 - 0x1FFF: RAM. */
@@ -24,9 +17,9 @@ inline byte mem_read(word address) {
         return ppu_dma_read();
     }
 
-    /* TODO: the rest. */
-    else {
-        return memory[address];
+    /* 0x4020 - 0xFFFF: Cartridge space. */
+    else if (address >= 0x4020) {
+        return mmc_cpu_read(address);
     }
 }
 
@@ -48,8 +41,8 @@ inline void mem_write(word address, byte data) {
         ppu_dma_write(data);
     }
 
-    /* TODO: the rest. */
-    else {
-        memory[address] = data;
+    /* 0x4020 - 0xFFFF: Cartridge space. */
+    else if (address >= 0x4020) {
+        mmc_cpu_write(address, data);
     }
 }
