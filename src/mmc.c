@@ -3,6 +3,7 @@
 #include "../include/log.h"
 #include "../include/mmc.h"
 #include "../include/nes.h"
+#include "../include/vram.h"
 
 typedef void (*Init) (void);
 typedef byte (*Read) (word);
@@ -62,6 +63,10 @@ void mmc_init(Cartridge *cartridge_) {
     mapper.read_ppu  = mapper000_read_ppu;
     mapper.write_cpu = NULL;
     mapper.write_ppu = NULL;
+
+    MirrorMode mode = cartridge->four_screen ? MMC :
+        cartridge->mirroring ? VERTICAL : HORIZONTAL;
+    vrm_set_mode(mode);
 }
 
 inline byte mmc_cpu_read(word address) {

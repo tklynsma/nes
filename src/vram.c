@@ -25,7 +25,7 @@ inline void vrm_set_mode(MirrorMode mode_) {
 inline byte vrm_read(word address) {
     address &= 0x3FFF;
 
-    /* 0x0000 - 0x1FFF: Pattern tables (TODO). */
+    /* 0x0000 - 0x1FFF: Pattern tables. */
     if (address < 0x2000) {
         return mmc_ppu_read(address);
     }
@@ -43,14 +43,14 @@ inline byte vrm_read(word address) {
 
     /* 0x3F00 - 0x3FFF: Palettes. */
     else {
-        return ppu_palette_read(address & 0x1F);
+        return ppu_palette_read(address);
     }
 }
 
 inline void vrm_write(word address, byte data) {
     address &= 0x3FFF;
 
-    /* 0x0000 - 0x1FFF: Pattern tables (TODO). */
+    /* 0x0000 - 0x1FFF: Pattern tables. */
     if (address < 0x2000) {
         mmc_ppu_write(address, data);
     }
@@ -68,6 +68,6 @@ inline void vrm_write(word address, byte data) {
 
     /* 0x3F00 - 0x3FFF: Palettes. */
     else {
-        ppu_palette_write(address & 0x1F, data);
+        ppu_palette_write(address, data);
     }
 }

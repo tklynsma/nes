@@ -14,17 +14,17 @@
 
 static void setup(void) {
     Cartridge *cartridge = malloc(sizeof(Cartridge));
-    cartridge->prg_rom = malloc(2 * PRG_BANK_SIZE);
+    cartridge->prg_rom = malloc(PRG_BANK_SIZE);
     cartridge->mapper = 0;
-    cartridge->prg_banks = 2;
+    cartridge->prg_banks = 1;
 
-    for (int i = 0; i < 2 * PRG_BANK_SIZE; i++) {
+    for (int i = 0; i < PRG_BANK_SIZE; i++) {
         cartridge->prg_rom[i] = 0x00;
     }
 
     /* Set IQR/BRK vector to 0x1234. */
-    cartridge->prg_rom[2 * PRG_BANK_SIZE - 2] = 0x34;
-    cartridge->prg_rom[2 * PRG_BANK_SIZE - 1] = 0x12;
+    cartridge->prg_rom[PRG_BANK_SIZE - 2] = 0x34;
+    cartridge->prg_rom[PRG_BANK_SIZE - 1] = 0x12;
 
     mmc_init(cartridge);
     cpu_init();

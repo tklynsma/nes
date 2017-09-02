@@ -1,6 +1,8 @@
 #ifndef CPU_INTERNAL_H
 #define CPU_INTERNAL_H
 
+#include "common.h"
+
 typedef struct {
     word PC;             /* Program counter. */
     byte S;              /* Stack pointer. */

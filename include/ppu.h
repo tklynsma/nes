@@ -3,6 +3,9 @@
 
 #include "common.h"
 
+void ppu_init(void);
+void ppu_reset(void);
+
 byte ppu_io_read(word address);
 void ppu_io_write(word address, byte data);
 

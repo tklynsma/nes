@@ -137,9 +137,10 @@ int main(int argc, char *argv[]) {
         }
 
         ppu_render_frame(display);
+        cpu_set_nmi();
         cpu_cycle(29781);
         draw_display(renderer);
-        SDL_Delay(500);
+        SDL_Delay(200);
     }
 
     close();

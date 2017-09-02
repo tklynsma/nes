@@ -10,6 +10,8 @@
 
 CPU cpu;                    /* CPU status. */
 
+static bool nmi = false;    /* NMI interrupt. */
+
 static byte operand;        /* Operand (8 bit) of the instruction. */
 static word address;        /* Operand (16 bit) of the instruction. */
 
@@ -40,6 +42,18 @@ static inline word pop_address(void) {
     byte lo = cpu.ram[0x100 | ++cpu.S];
     byte hi = cpu.ram[0x100 | ++cpu.S];
     return (hi << 8) | lo;
+}
+
+/* -----------------------------------------------------------------
+ * Handle interrupt.
+ * -------------------------------------------------------------- */
+
+static inline void interrupt(word vector) {
+    push_address(cpu.PC + 1);
+    push(flg_get_status(false));
+    cpu.PC = mem_read_16(vector);
+    flg_set_I();
+    wait_cycles = 7;
 }
 
 /* -----------------------------------------------------------------
@@ -798,6 +812,12 @@ static inline void init_instruction_table(void) {
  * CPU iterface.
  * -------------------------------------------------------------- */
 
+void cpu_set_nmi(void) {
+    if (!flg_is_I()) {
+        nmi = true;
+    }
+}
+
 void cpu_reset(void) {
     cpu.S -= 3;
     flg_set_I();
@@ -830,11 +850,17 @@ void cpu_init(void) {
 void cpu_cycle(int num_cycles) {
     while (num_cycles > 0) {
         if (wait_cycles == 0) {
-            extra_cycles = 0;
-            byte opcode = mem_read(cpu.PC);
-            (*cpu_addressing_table[opcode])();
-            (*cpu_instruction_table[opcode])();
-            wait_cycles = cpu_cycles_table[opcode] + extra_cycles;
+            if (nmi) {
+                interrupt(NMI_VECTOR);
+                nmi = false;
+            }
+            else {
+                extra_cycles = 0;
+                byte opcode = mem_read(cpu.PC);
+                (*cpu_addressing_table[opcode])();
+                (*cpu_instruction_table[opcode])();
+                wait_cycles = cpu_cycles_table[opcode] + extra_cycles;
+            }
         }
 
         wait_cycles--;

@@ -2,7 +2,7 @@
 #include "../include/memory_tests.h"
 #include "../include/test_unit.h"
 
-char *test_mirror_0000_2000(void) {
+char *test_cpu_ram(void) {
     mem_write(0x0000, 0x77);
     ASSERT("Mirror 0x0000-0x2000", mem_read(0x0000) == 0x77);
     ASSERT("Mirror 0x0000-0x2000", mem_read(0x0800) == 0x77);
@@ -19,7 +19,7 @@ char *test_mirror_0000_2000(void) {
 }
 
 char *mem_tests(void) {
-    RUN_TEST( test_mirror_0000_2000 );
+    RUN_TEST( test_cpu_ram );
 
     return 0;
 }
