@@ -194,7 +194,11 @@ void mapper001_init(Cartridge *cartridge) {
 
     /* Initialize registers. */
     cartridge->registers = malloc(NUM_REGISTERS);
+    for (int i = 0; i < NUM_REGISTERS; i++) {
+        cartridge->registers[i] = 0x00;
+    }
     shift_register = 0x10;
+    prg_page_1 = cartridge->prg_banks - 1;
 
     /* Initialize mapper functions. */
     cartridge->cpu_read  = mapper001_cpu_read;

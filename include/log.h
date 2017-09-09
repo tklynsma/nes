@@ -24,9 +24,15 @@
 # define LOG_ERROR(...) do {} while (0)
 #endif
 
+#ifdef CPU_LOGGING
+# define LOG_CPU(...) log_cpu(__VA_ARGS__)
+#else
+# define LOG_CPU(...) do {} while (0)
+#endif
+
 void log_error(const char *message, ...);
 void log_info(const char *message, ...);
 void log_warning(const char *message, ...);
-void log_cpu(const char *message, ...);
+void log_cpu(int width, const char *message, ...);
 
 #endif /* LOG_H */

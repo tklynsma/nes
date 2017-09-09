@@ -58,7 +58,7 @@ void log_error(const char *message, ...) {
     return exit(EXIT_FAILURE);
 }
 
-void log_cpu(const char *message, ...) {
+void log_cpu(int width, const char *message, ...) {
     FILE *file = fopen(CPU_LOGFILE, "a");
 
     if (file != NULL) {
@@ -68,7 +68,10 @@ void log_cpu(const char *message, ...) {
         vsnprintf(message_, 256, message, args);
         va_end(args);
 
-        fputs(message_, file);
+        char padded_message[256];
+        sprintf(padded_message, "%-*s", width, message_);
+
+        fputs(padded_message, file);
         fclose(file);
     }
     else {

@@ -7,14 +7,6 @@
 #define RESET_VECTOR 0xFFFC
 #define IRQ_VECTOR   0xFFFE
 
-#define CPU_LOGGING
-
-#ifdef CPU_LOGGING
-# define LOG_CPU(...) log_cpu(__VA_ARGS__)
-#else
-# define LOG_CPU(...) do {} while (0)
-#endif
-
 #include "../include/common.h"
 
 void cpu_set_nmi(void);

@@ -1,3 +1,5 @@
+#define CPU_LOGGING
+
 #include <stdio.h>
 #include "../include/common.h"
 #include "../include/cpu.h"
@@ -5,6 +7,10 @@
 #include "../include/cpu_internal.h"
 #include "../include/log.h"
 #include "../include/memory.h"
+
+#ifdef CPU_LOGGING
+#include "../include/ppu_internal.h"
+#endif
 
 /* -----------------------------------------------------------------
  * CPU variables.
@@ -75,48 +81,70 @@ static inline bool is_diff_page(word address1, word address2) {
 }
 
 static inline void absolute(void) {
-    LOG_CPU("%02X %02X  %s $%04X   ", mem_read(cpu.PC + 1), mem_read(cpu.PC + 2),
-        cpu_names_table[opcode], mem_read_16(cpu.PC + 1));
+    #ifdef CPU_LOGGING
+    LOG_CPU(6, "%02X %02X", mem_read(cpu.PC + 1), mem_read(cpu.PC + 2));
+    if (opcode == 0x20 || opcode == 0x4C) { /* JMP or JSR absolute. */
+        LOG_CPU(33, "%s $%04X", cpu_names_table[opcode], mem_read_16(cpu.PC + 1));
+    }
+    else {
+        LOG_CPU(33, "%s $%04X = %02X", cpu_names_table[opcode],
+            mem_read_16(cpu.PC + 1), mem_read(mem_read_16(cpu.PC + 1)));
+    }
+    #endif
+
     address = mem_read_16(cpu.PC + 1);
     cpu.PC += 3;
 }
 
 static inline void absolute_x(void) {
-    LOG_CPU("%02X %02X  %s $%04X   ", mem_read(cpu.PC + 1), mem_read(cpu.PC + 2),
-        cpu_names_table[opcode], mem_read_16(cpu.PC + 1));
+    LOG_CPU(6, "%02X %02X", mem_read(cpu.PC + 1), mem_read(cpu.PC + 2));
+
     address = mem_read_16(cpu.PC + 1) + cpu.X;
     extra_cycles = is_diff_page(address, address - cpu.X);
+
+    LOG_CPU(33, "%s $%04X,X @ %04X = %02X", cpu_names_table[opcode],
+        mem_read_16(cpu.PC + 1), address, mem_read(address));
+
     cpu.PC += 3;
 }
 
 static inline void absolute_y(void) {
-    LOG_CPU("%02X %02X  %s $%04X   ", mem_read(cpu.PC + 1), mem_read(cpu.PC + 2),
-        cpu_names_table[opcode], mem_read_16(cpu.PC + 1));
+    LOG_CPU(6, "%02X %02X", mem_read(cpu.PC + 1), mem_read(cpu.PC + 2));
+
     address = mem_read_16(cpu.PC + 1) + cpu.Y;
     extra_cycles = is_diff_page(address, address - cpu.Y);
+
+    LOG_CPU(33, "%s $%04X,Y @ %04X = %02X", cpu_names_table[opcode],
+        mem_read_16(cpu.PC + 1), address, mem_read(address));
+
     cpu.PC += 3;
 }
 
 static inline void accumulator(void) {
-    LOG_CPU("       %s         ", cpu_names_table[opcode]);
+    LOG_CPU(6, "");
+    LOG_CPU(33, "%s A", cpu_names_table[opcode]);
+
     cpu.PC += 1;
 }
 
 static inline void immediate(void) {
-    LOG_CPU("%02X     %s $%02X     ", mem_read(cpu.PC + 1),
-        cpu_names_table[opcode], mem_read(cpu.PC + 1));
+    LOG_CPU(6, "%02X", mem_read(cpu.PC + 1));
+    LOG_CPU(33, "%s #$%02X", cpu_names_table[opcode], mem_read(cpu.PC + 1));
+
     address = cpu.PC + 1;
     cpu.PC += 2;
 }
 
 static inline void implied(void) {
-    LOG_CPU("       %s         ", cpu_names_table[opcode]);
+    LOG_CPU(6, "");
+    LOG_CPU(33, "%s", cpu_names_table[opcode]);
+
     cpu.PC += 1;
 }
 
 static inline void indirect(void) {
-    LOG_CPU("%02X %02X  %s $%04X   ", mem_read(cpu.PC + 1), mem_read(cpu.PC + 2),
-        cpu_names_table[opcode], mem_read_16(cpu.PC + 1));
+    LOG_CPU(6, "%02X %02X", mem_read(cpu.PC + 1), mem_read(cpu.PC + 2));
+
     address = mem_read_16(cpu.PC + 1);
     if (address & 0xFF == 0xFF) {
         byte lo = mem_read(address);
@@ -126,54 +154,78 @@ static inline void indirect(void) {
     else {
         address = mem_read_16(address);
     }
+
+    LOG_CPU(33, "%s ($%04X) = %04X", cpu_names_table[opcode],
+        mem_read_16(cpu.PC + 1), address);
 }
 
 static inline void indirect_x(void) {
-    LOG_CPU("%02X     %s $%02X     ", mem_read(cpu.PC + 1),
-        cpu_names_table[opcode], mem_read(cpu.PC + 1));
+    LOG_CPU(6, "%02X", mem_read(cpu.PC + 1));
+
     address = mem_read(cpu.PC + 1);
     byte lo = cpu.ram[(address + cpu.X) & 0xFF];
     byte hi = cpu.ram[(address + cpu.X + 1) & 0xFF];
     address = (hi << 8) | lo;
+
+    LOG_CPU(33, "%s ($%02X,X) @ %02X = %04X = %02X", cpu_names_table[opcode],
+        mem_read(cpu.PC + 1), (mem_read(cpu.PC + 1) + cpu.X) & 0xFF,
+        address, mem_read(address));
+
     cpu.PC += 2;
 }
 
 static inline void indirect_y(void) {
-    LOG_CPU("%02X     %s $%02X     ", mem_read(cpu.PC + 1),
-        cpu_names_table[opcode], mem_read(cpu.PC + 1));
+    LOG_CPU(6, "%02X", mem_read(cpu.PC + 1));
+
     address = mem_read(cpu.PC + 1);
     byte lo = cpu.ram[address];
     byte hi = cpu.ram[(address + 1) & 0xFF];
     address = ((hi << 8) | lo) + cpu.Y;
     extra_cycles = is_diff_page(address, address - cpu.Y);
+
+    LOG_CPU(33, "%s ($%02X),Y = %04X @ %04X = %02X", cpu_names_table[opcode],
+        mem_read(cpu.PC + 1), (hi << 8) | lo, address, mem_read(address));
+
     cpu.PC += 2;
 }
 
 static inline void relative(void) {
-    LOG_CPU("%02X     %s         ", mem_read(cpu.PC + 1),
-        cpu_names_table[opcode]);
+    LOG_CPU(6, "%02X", mem_read(cpu.PC + 1));
+    LOG_CPU(33, "%s $%04X", cpu_names_table[opcode],
+        cpu.PC + (int8_t) mem_read(cpu.PC + 1) + 2);
+
     address = cpu.PC + 1;
     cpu.PC += 2;
 }
 
 static inline void zero_page(void) {
-    LOG_CPU("%02X     %s $%02X     ", mem_read(cpu.PC + 1),
-        cpu_names_table[opcode], mem_read(cpu.PC + 1));
+    LOG_CPU(6, "%02X", mem_read(cpu.PC + 1));
+    LOG_CPU(33, "%s $%02X = %02X", cpu_names_table[opcode],
+        mem_read(cpu.PC + 1), mem_read(mem_read(cpu.PC + 1)));
+
     address = mem_read(cpu.PC + 1);
     cpu.PC += 2;
 }
 
 static inline void zero_page_x(void) {
-    LOG_CPU("%02X     %s $%02X     ", mem_read(cpu.PC + 1),
-        cpu_names_table[opcode], mem_read(cpu.PC + 1));
+    LOG_CPU(6, "%02X", mem_read(cpu.PC + 1));
+
     address = (mem_read(cpu.PC + 1) + cpu.X) & 0xFF;
+
+    LOG_CPU(33, "%s $%02X,X @ %02X = %02X", cpu_names_table[opcode],
+        mem_read(cpu.PC + 1), address, mem_read(address));
+
     cpu.PC += 2;
 }
 
 static inline void zero_page_y(void) {
-    LOG_CPU("%02X     %s $%02X     ", mem_read(cpu.PC + 1),
-        cpu_names_table[opcode], mem_read(cpu.PC + 1));
+    LOG_CPU(6, "%02X", mem_read(cpu.PC + 1));
+
     address = (mem_read(cpu.PC + 1) + cpu.Y) & 0xFF;
+
+    LOG_CPU(33, "%s $%02X,Y @ %02X = %02X", cpu_names_table[opcode],
+        mem_read(cpu.PC + 1), address, mem_read(address));
+
     cpu.PC += 2;
 }
 
@@ -249,9 +301,9 @@ static inline void beq(void) {
 /* BIT - Bit Test. */
 static inline void bit(void) {
     operand = mem_read(address);
-    byte test = cpu.A & operand;
-    flg_update_ZN(test);
-    flg_update_V_bit(test);
+    flg_update_Z(cpu.A & operand);
+    flg_update_N(operand);
+    flg_update_V_bit(operand);
 }
 
 /* BMI - Branch if Minus. */
@@ -377,7 +429,7 @@ static inline void jmp(void) {
 
 /* JSR - Jump to Subroutine. */
 static inline void jsr(void) {
-    push_address(cpu.PC);
+    push_address(cpu.PC - 1);
     cpu.PC = address;
 }
 
@@ -432,7 +484,7 @@ static inline void php(void) {
 
 /* PLA - Pull Accumulator. */
 static inline void pla(void) {
-    cpu.A = pop();
+    flg_update_ZN(cpu.A = pop());
 }
 
 /* PLP - Pull Processor Status. */
@@ -459,16 +511,18 @@ static inline void rol_m(void) {
 
 /* ROR - Rotate Right (Accumulator). */
 static inline void ror_a(void) {
+    bool carry = flg_is_C();
     flg_update_C (cpu.A, ROR);
-    cpu.A = (cpu.A >> 1) | (flg_is_C() << 7);
+    cpu.A = (cpu.A >> 1) | (carry << 7);
     flg_update_ZN(cpu.A);
 }
 
 /* ROR - Rotate Right (Memory). */
 static inline void ror_m(void) {
+    bool carry = flg_is_C();
     operand = mem_read(address);
     flg_update_C (operand, ROR);
-    operand = (operand >> 1) | (flg_is_C() << 7);
+    operand = (operand >> 1) | (carry << 7);
     mem_write(address, operand);
     flg_update_ZN(operand);
     extra_cycles = 0;
@@ -482,7 +536,7 @@ static inline void rti(void) {
 
 /* RTS - Return from Subroutine. */
 static inline void rts(void) {
-    cpu.PC = pop_address();
+    cpu.PC = pop_address() + 1;
 }
 
 /* SBC - Subtract with Carry. */
@@ -573,271 +627,271 @@ static inline void set_instruction(byte opcode, int cycles,
 static inline void init_instruction_table(void) {
     /* Reset CPU tables. */
     for (int opcode = 0; opcode < 256; opcode++) {
-        set_instruction(opcode, 2, "---", invalid, implied);
+        set_instruction(opcode, 2, "****", nop, implied);
     }
 
     /* ADC - Add with Carry. */
-    set_instruction(0x69, 2, "ADC", adc, immediate);
-    set_instruction(0x65, 3, "ADC", adc, zero_page);
-    set_instruction(0x75, 4, "ADC", adc, zero_page_x);
-    set_instruction(0x6D, 4, "ADC", adc, absolute);
-    set_instruction(0x7D, 4, "ADC", adc, absolute_x);
-    set_instruction(0x79, 4, "ADC", adc, absolute_y);
-    set_instruction(0x61, 6, "ADC", adc, indirect_x);
-    set_instruction(0x71, 5, "ADC", adc, indirect_y);
+    set_instruction(0x69, 2, " ADC", adc, immediate);
+    set_instruction(0x65, 3, " ADC", adc, zero_page);
+    set_instruction(0x75, 4, " ADC", adc, zero_page_x);
+    set_instruction(0x6D, 4, " ADC", adc, absolute);
+    set_instruction(0x7D, 4, " ADC", adc, absolute_x);
+    set_instruction(0x79, 4, " ADC", adc, absolute_y);
+    set_instruction(0x61, 6, " ADC", adc, indirect_x);
+    set_instruction(0x71, 5, " ADC", adc, indirect_y);
 
     /* AND - Logical AND. */
-    set_instruction(0x29, 2, "AND", and, immediate);
-    set_instruction(0x25, 3, "AND", and, zero_page);
-    set_instruction(0x35, 4, "AND", and, zero_page_x);
-    set_instruction(0x2D, 4, "AND", and, absolute);
-    set_instruction(0x3D, 4, "AND", and, absolute_x);
-    set_instruction(0x39, 4, "AND", and, absolute_y);
-    set_instruction(0x21, 6, "AND", and, indirect_x);
-    set_instruction(0x31, 5, "AND", and, indirect_y);
+    set_instruction(0x29, 2, " AND", and, immediate);
+    set_instruction(0x25, 3, " AND", and, zero_page);
+    set_instruction(0x35, 4, " AND", and, zero_page_x);
+    set_instruction(0x2D, 4, " AND", and, absolute);
+    set_instruction(0x3D, 4, " AND", and, absolute_x);
+    set_instruction(0x39, 4, " AND", and, absolute_y);
+    set_instruction(0x21, 6, " AND", and, indirect_x);
+    set_instruction(0x31, 5, " AND", and, indirect_y);
 
     /* ASL - Arithmetic Shift Left. */
-    set_instruction(0x0A, 2, "ASL", asl_a, accumulator);
-    set_instruction(0x06, 5, "ASL", asl_m, zero_page);
-    set_instruction(0x16, 6, "ASL", asl_m, zero_page_x);
-    set_instruction(0x0E, 6, "ASL", asl_m, absolute);
-    set_instruction(0x1E, 7, "ASL", asl_m, absolute_x);
+    set_instruction(0x0A, 2, " ASL", asl_a, accumulator);
+    set_instruction(0x06, 5, " ASL", asl_m, zero_page);
+    set_instruction(0x16, 6, " ASL", asl_m, zero_page_x);
+    set_instruction(0x0E, 6, " ASL", asl_m, absolute);
+    set_instruction(0x1E, 7, " ASL", asl_m, absolute_x);
 
     /* BCC - Branch if Carry Clear. */
-    set_instruction(0x90, 2, "BCC", bcc, relative);
+    set_instruction(0x90, 2, " BCC", bcc, relative);
 
     /* BCS - Branch if Carry Set. */
-    set_instruction(0xB0, 2, "BCS", bcs, relative);
+    set_instruction(0xB0, 2, " BCS", bcs, relative);
 
     /* BEQ - Branch if Equal. */
-    set_instruction(0xF0, 2, "BEQ", beq, relative);
+    set_instruction(0xF0, 2, " BEQ", beq, relative);
 
     /* BIT - Bit Test. */
-    set_instruction(0x24, 3, "BIT", bit, zero_page);
-    set_instruction(0x2C, 4, "BIT", bit, absolute);
+    set_instruction(0x24, 3, " BIT", bit, zero_page);
+    set_instruction(0x2C, 4, " BIT", bit, absolute);
 
     /* BMI - Branch if Minus. */
-    set_instruction(0x30, 2, "BMI", bmi, relative);
+    set_instruction(0x30, 2, " BMI", bmi, relative);
 
     /* BNE - Branch if Not Equal. */
-    set_instruction(0xD0, 2, "BNE", bne, relative);
+    set_instruction(0xD0, 2, " BNE", bne, relative);
 
     /* BPL - Branch if Positive. */
-    set_instruction(0x10, 2, "BPL", bpl, relative);
+    set_instruction(0x10, 2, " BPL", bpl, relative);
 
     /* BRK - Force Interrupt. */
-    set_instruction(0x00, 7, "BRK", brk, implied);
+    set_instruction(0x00, 7, " BRK", brk, implied);
 
     /* BVC - Branch if Overflow Clear. */
-    set_instruction(0x50, 2, "BVC", bvc, relative);
+    set_instruction(0x50, 2, " BVC", bvc, relative);
 
     /* BVS - Branch if Overflow Set. */
-    set_instruction(0x70, 2, "BVS", bvs, relative);
+    set_instruction(0x70, 2, " BVS", bvs, relative);
 
     /* CLC - Clear Carry Flag. */
-    set_instruction(0x18, 2, "CLC", clc, implied);
+    set_instruction(0x18, 2, " CLC", clc, implied);
 
     /* CLD - Clear Decimal Mode. */
-    set_instruction(0xD8, 2, "CLD", cld, implied);
+    set_instruction(0xD8, 2, " CLD", cld, implied);
 
     /* CLI - Clear Interrupt Disable. */
-    set_instruction(0x58, 2, "CLI", cli, implied);
+    set_instruction(0x58, 2, " CLI", cli, implied);
 
     /* CLV - Clear Overflow Flag. */
-    set_instruction(0xB8, 2, "CLV", clv, implied);
+    set_instruction(0xB8, 2, " CLV", clv, implied);
 
     /* CMP - Compare. */
-    set_instruction(0xC9, 2, "CMP", cmp, immediate);
-    set_instruction(0xC5, 3, "CMP", cmp, zero_page);
-    set_instruction(0xD5, 4, "CMP", cmp, zero_page_x);
-    set_instruction(0xCD, 4, "CMP", cmp, absolute);
-    set_instruction(0xDD, 4, "CMP", cmp, absolute_x);
-    set_instruction(0xD9, 4, "CMP", cmp, absolute_y);
-    set_instruction(0xC1, 6, "CMP", cmp, indirect_x);
-    set_instruction(0xD1, 5, "CMP", cmp, indirect_y);
+    set_instruction(0xC9, 2, " CMP", cmp, immediate);
+    set_instruction(0xC5, 3, " CMP", cmp, zero_page);
+    set_instruction(0xD5, 4, " CMP", cmp, zero_page_x);
+    set_instruction(0xCD, 4, " CMP", cmp, absolute);
+    set_instruction(0xDD, 4, " CMP", cmp, absolute_x);
+    set_instruction(0xD9, 4, " CMP", cmp, absolute_y);
+    set_instruction(0xC1, 6, " CMP", cmp, indirect_x);
+    set_instruction(0xD1, 5, " CMP", cmp, indirect_y);
 
     /* CPX - Compare X Register. */
-    set_instruction(0xE0, 2, "CPX", cpx, immediate);
-    set_instruction(0xE4, 3, "CPX", cpx, zero_page);
-    set_instruction(0xEC, 4, "CPX", cpx, absolute);
+    set_instruction(0xE0, 2, " CPX", cpx, immediate);
+    set_instruction(0xE4, 3, " CPX", cpx, zero_page);
+    set_instruction(0xEC, 4, " CPX", cpx, absolute);
 
     /* CPY - Compare Y Register. */
-    set_instruction(0xC0, 2, "CPY", cpy, immediate);
-    set_instruction(0xC4, 3, "CPY", cpy, zero_page);
-    set_instruction(0xCC, 4, "CPY", cpy, absolute);
+    set_instruction(0xC0, 2, " CPY", cpy, immediate);
+    set_instruction(0xC4, 3, " CPY", cpy, zero_page);
+    set_instruction(0xCC, 4, " CPY", cpy, absolute);
 
     /* DEC - Decrement Memory. */
-    set_instruction(0xC6, 5, "DEC", dec, zero_page);
-    set_instruction(0xD6, 6, "DEC", dec, zero_page_x);
-    set_instruction(0xCE, 6, "DEC", dec, absolute);
-    set_instruction(0xDE, 7, "DEC", dec, absolute_x);
+    set_instruction(0xC6, 5, " DEC", dec, zero_page);
+    set_instruction(0xD6, 6, " DEC", dec, zero_page_x);
+    set_instruction(0xCE, 6, " DEC", dec, absolute);
+    set_instruction(0xDE, 7, " DEC", dec, absolute_x);
 
     /* DEX - Decrement X Register. */
-    set_instruction(0xCA, 2, "DEX", dex, implied);
+    set_instruction(0xCA, 2, " DEX", dex, implied);
 
     /* DEY - Decrement Y Register. */
-    set_instruction(0x88, 2, "DEY", dey, implied);
+    set_instruction(0x88, 2, " DEY", dey, implied);
 
     /* EOR - Exclusive OR. */
-    set_instruction(0x49, 2, "EOR", eor, immediate);
-    set_instruction(0x45, 3, "EOR", eor, zero_page);
-    set_instruction(0x55, 4, "EOR", eor, zero_page_x);
-    set_instruction(0x4D, 4, "EOR", eor, absolute);
-    set_instruction(0x5D, 4, "EOR", eor, absolute_x);
-    set_instruction(0x59, 4, "EOR", eor, absolute_y);
-    set_instruction(0x41, 6, "EOR", eor, indirect_x);
-    set_instruction(0x51, 5, "EOR", eor, indirect_y);
+    set_instruction(0x49, 2, " EOR", eor, immediate);
+    set_instruction(0x45, 3, " EOR", eor, zero_page);
+    set_instruction(0x55, 4, " EOR", eor, zero_page_x);
+    set_instruction(0x4D, 4, " EOR", eor, absolute);
+    set_instruction(0x5D, 4, " EOR", eor, absolute_x);
+    set_instruction(0x59, 4, " EOR", eor, absolute_y);
+    set_instruction(0x41, 6, " EOR", eor, indirect_x);
+    set_instruction(0x51, 5, " EOR", eor, indirect_y);
 
     /* INC - Increment Memory. */
-    set_instruction(0xE6, 5, "INC", inc, zero_page);
-    set_instruction(0xF6, 6, "INC", inc, zero_page_x);
-    set_instruction(0xEE, 6, "INC", inc, absolute);
-    set_instruction(0xFE, 7, "INC", inc, absolute_x);
+    set_instruction(0xE6, 5, " INC", inc, zero_page);
+    set_instruction(0xF6, 6, " INC", inc, zero_page_x);
+    set_instruction(0xEE, 6, " INC", inc, absolute);
+    set_instruction(0xFE, 7, " INC", inc, absolute_x);
 
     /* INX - Increment X Register. */
-    set_instruction(0xE8, 2, "INX", inx, implied);
+    set_instruction(0xE8, 2, " INX", inx, implied);
 
     /* INY - Increment Y Register. */
-    set_instruction(0xC8, 2, "INY", iny, implied);
+    set_instruction(0xC8, 2, " INY", iny, implied);
 
     /* JMP - Jump. */
-    set_instruction(0x4C, 3, "JMP", jmp, absolute);
-    set_instruction(0x6C, 5, "JMP", jmp, indirect);
+    set_instruction(0x4C, 3, " JMP", jmp, absolute);
+    set_instruction(0x6C, 5, " JMP", jmp, indirect);
 
     /* JSR - Jump to Subroutine. */
-    set_instruction(0x20, 6, "JSR", jsr, absolute);
+    set_instruction(0x20, 6, " JSR", jsr, absolute);
 
     /* LDA - Load Accumulator. */
-    set_instruction(0xA9, 2, "LDA", lda, immediate);
-    set_instruction(0xA5, 3, "LDA", lda, zero_page);
-    set_instruction(0xB5, 4, "LDA", lda, zero_page_x);
-    set_instruction(0xAD, 4, "LDA", lda, absolute);
-    set_instruction(0xBD, 4, "LDA", lda, absolute_x);
-    set_instruction(0xB9, 4, "LDA", lda, absolute_y);
-    set_instruction(0xA1, 6, "LDA", lda, indirect_x);
-    set_instruction(0xB1, 5, "LDA", lda, indirect_y);
+    set_instruction(0xA9, 2, " LDA", lda, immediate);
+    set_instruction(0xA5, 3, " LDA", lda, zero_page);
+    set_instruction(0xB5, 4, " LDA", lda, zero_page_x);
+    set_instruction(0xAD, 4, " LDA", lda, absolute);
+    set_instruction(0xBD, 4, " LDA", lda, absolute_x);
+    set_instruction(0xB9, 4, " LDA", lda, absolute_y);
+    set_instruction(0xA1, 6, " LDA", lda, indirect_x);
+    set_instruction(0xB1, 5, " LDA", lda, indirect_y);
 
     /* LDX - Load X Register. */
-    set_instruction(0xA2, 2, "LDX", ldx, immediate);
-    set_instruction(0xA6, 3, "LDX", ldx, zero_page);
-    set_instruction(0xB6, 4, "LDX", ldx, zero_page_y);
-    set_instruction(0xAE, 4, "LDX", ldx, absolute);
-    set_instruction(0xBE, 4, "LDX", ldx, absolute_y);
+    set_instruction(0xA2, 2, " LDX", ldx, immediate);
+    set_instruction(0xA6, 3, " LDX", ldx, zero_page);
+    set_instruction(0xB6, 4, " LDX", ldx, zero_page_y);
+    set_instruction(0xAE, 4, " LDX", ldx, absolute);
+    set_instruction(0xBE, 4, " LDX", ldx, absolute_y);
 
     /* LDY - Load Y Register. */
-    set_instruction(0xA0, 2, "LDY", ldy, immediate);
-    set_instruction(0xA4, 3, "LDY", ldy, zero_page);
-    set_instruction(0xB4, 4, "LDY", ldy, zero_page_x);
-    set_instruction(0xAC, 4, "LDY", ldy, absolute);
-    set_instruction(0xBC, 4, "LDY", ldy, absolute_x);
+    set_instruction(0xA0, 2, " LDY", ldy, immediate);
+    set_instruction(0xA4, 3, " LDY", ldy, zero_page);
+    set_instruction(0xB4, 4, " LDY", ldy, zero_page_x);
+    set_instruction(0xAC, 4, " LDY", ldy, absolute);
+    set_instruction(0xBC, 4, " LDY", ldy, absolute_x);
 
     /* LSR - Logical Shift Right. */
-    set_instruction(0x4A, 2, "LSR", lsr_a, accumulator);
-    set_instruction(0x46, 5, "LSR", lsr_m, zero_page);
-    set_instruction(0x56, 6, "LSR", lsr_m, zero_page_x);
-    set_instruction(0x4E, 6, "LSR", lsr_m, absolute);
-    set_instruction(0x5E, 7, "LSR", lsr_m, absolute_x);
+    set_instruction(0x4A, 2, " LSR", lsr_a, accumulator);
+    set_instruction(0x46, 5, " LSR", lsr_m, zero_page);
+    set_instruction(0x56, 6, " LSR", lsr_m, zero_page_x);
+    set_instruction(0x4E, 6, " LSR", lsr_m, absolute);
+    set_instruction(0x5E, 7, " LSR", lsr_m, absolute_x);
 
     /* NOP - No Operation. */
-    set_instruction(0xEA, 2, "NOP", nop, implied);
+    set_instruction(0xEA, 2, " NOP", nop, implied);
 
     /* ORA - Logical Inclusive OR. */
-    set_instruction(0x09, 2, "ORA", ora, immediate);
-    set_instruction(0x05, 3, "ORA", ora, zero_page);
-    set_instruction(0x15, 4, "ORA", ora, zero_page_x);
-    set_instruction(0x0D, 4, "ORA", ora, absolute);
-    set_instruction(0x1D, 4, "ORA", ora, absolute_x);
-    set_instruction(0x19, 4, "ORA", ora, absolute_y);
-    set_instruction(0x01, 6, "ORA", ora, indirect_x);
-    set_instruction(0x11, 5, "ORA", ora, indirect_y);
+    set_instruction(0x09, 2, " ORA", ora, immediate);
+    set_instruction(0x05, 3, " ORA", ora, zero_page);
+    set_instruction(0x15, 4, " ORA", ora, zero_page_x);
+    set_instruction(0x0D, 4, " ORA", ora, absolute);
+    set_instruction(0x1D, 4, " ORA", ora, absolute_x);
+    set_instruction(0x19, 4, " ORA", ora, absolute_y);
+    set_instruction(0x01, 6, " ORA", ora, indirect_x);
+    set_instruction(0x11, 5, " ORA", ora, indirect_y);
 
     /* PHA - Push Accumulator. */
-    set_instruction(0x48, 3, "PHA", pha, implied);
+    set_instruction(0x48, 3, " PHA", pha, implied);
 
     /* PHP - Push Processor Status. */
-    set_instruction(0x08, 3, "PHP", php, implied);
+    set_instruction(0x08, 3, " PHP", php, implied);
 
     /* PLA - Pull Accumulator. */
-    set_instruction(0x68, 4, "PLA", pla, implied);
+    set_instruction(0x68, 4, " PLA", pla, implied);
 
     /* PLP - Pull Processor Status. */
-    set_instruction(0x28, 4, "PLP", plp, implied);
+    set_instruction(0x28, 4, " PLP", plp, implied);
 
     /* ROL - Rotate Left. */
-    set_instruction(0x2A, 2, "ROL", rol_a, accumulator);
-    set_instruction(0x26, 5, "ROL", rol_m, zero_page);
-    set_instruction(0x36, 6, "ROL", rol_m, zero_page_x);
-    set_instruction(0x2E, 6, "ROL", rol_m, absolute);
-    set_instruction(0x3E, 7, "ROL", rol_m, absolute_x);
+    set_instruction(0x2A, 2, " ROL", rol_a, accumulator);
+    set_instruction(0x26, 5, " ROL", rol_m, zero_page);
+    set_instruction(0x36, 6, " ROL", rol_m, zero_page_x);
+    set_instruction(0x2E, 6, " ROL", rol_m, absolute);
+    set_instruction(0x3E, 7, " ROL", rol_m, absolute_x);
 
     /* ROR - Rotate Right. */
-    set_instruction(0x6A, 2, "ROR", ror_a, accumulator);
-    set_instruction(0x66, 5, "ROR", ror_m, zero_page);
-    set_instruction(0x76, 6, "ROR", ror_m, zero_page_x);
-    set_instruction(0x6E, 6, "ROR", ror_m, absolute);
-    set_instruction(0x7E, 7, "ROR", ror_m, absolute_x);
+    set_instruction(0x6A, 2, " ROR", ror_a, accumulator);
+    set_instruction(0x66, 5, " ROR", ror_m, zero_page);
+    set_instruction(0x76, 6, " ROR", ror_m, zero_page_x);
+    set_instruction(0x6E, 6, " ROR", ror_m, absolute);
+    set_instruction(0x7E, 7, " ROR", ror_m, absolute_x);
 
     /* RTI - Return from Interrupt. */
-    set_instruction(0x40, 6, "RTI", rti, implied);
+    set_instruction(0x40, 6, " RTI", rti, implied);
 
     /* RTS - Return from Subroutine. */
-    set_instruction(0x60, 6, "RTS", rts, implied);
+    set_instruction(0x60, 6, " RTS", rts, implied);
 
     /* SBC - Subtract with Carry. */
-    set_instruction(0xE9, 2, "SBC", sbc, immediate);
-    set_instruction(0xE5, 3, "SBC", sbc, zero_page);
-    set_instruction(0xF5, 4, "SBC", sbc, zero_page_x);
-    set_instruction(0xED, 4, "SBC", sbc, absolute);
-    set_instruction(0xFD, 4, "SBC", sbc, absolute_x);
-    set_instruction(0xF9, 4, "SBC", sbc, absolute_y);
-    set_instruction(0xE1, 6, "SBC", sbc, indirect_x);
-    set_instruction(0xF1, 5, "SBC", sbc, indirect_y);
+    set_instruction(0xE9, 2, " SBC", sbc, immediate);
+    set_instruction(0xE5, 3, " SBC", sbc, zero_page);
+    set_instruction(0xF5, 4, " SBC", sbc, zero_page_x);
+    set_instruction(0xED, 4, " SBC", sbc, absolute);
+    set_instruction(0xFD, 4, " SBC", sbc, absolute_x);
+    set_instruction(0xF9, 4, " SBC", sbc, absolute_y);
+    set_instruction(0xE1, 6, " SBC", sbc, indirect_x);
+    set_instruction(0xF1, 5, " SBC", sbc, indirect_y);
 
     /* SEC - Set Carry Flag. */
-    set_instruction(0x38, 2, "SEC", sec, implied);
+    set_instruction(0x38, 2, " SEC", sec, implied);
 
     /* SEC - Set Decimal Flag. */
-    set_instruction(0xF8, 2, "SED", sed, implied);
+    set_instruction(0xF8, 2, " SED", sed, implied);
 
     /* SEI - Set Interrupt Disable. */
-    set_instruction(0x78, 2, "SEI", sei, implied);
+    set_instruction(0x78, 2, " SEI", sei, implied);
 
     /* STA - Store Accumulator. */
-    set_instruction(0x85, 3, "STA", sta, zero_page);
-    set_instruction(0x95, 4, "STA", sta, zero_page_x);
-    set_instruction(0x8D, 4, "STA", sta, absolute);
-    set_instruction(0x9D, 5, "STA", sta, absolute_x);
-    set_instruction(0x99, 5, "STA", sta, absolute_y);
-    set_instruction(0x81, 6, "STA", sta, indirect_x);
-    set_instruction(0x91, 6, "STA", sta, indirect_y);
+    set_instruction(0x85, 3, " STA", sta, zero_page);
+    set_instruction(0x95, 4, " STA", sta, zero_page_x);
+    set_instruction(0x8D, 4, " STA", sta, absolute);
+    set_instruction(0x9D, 5, " STA", sta, absolute_x);
+    set_instruction(0x99, 5, " STA", sta, absolute_y);
+    set_instruction(0x81, 6, " STA", sta, indirect_x);
+    set_instruction(0x91, 6, " STA", sta, indirect_y);
 
     /* STX - Store X Register. */
-    set_instruction(0x86, 3, "STX", stx, zero_page);
-    set_instruction(0x96, 4, "STX", stx, zero_page_y);
-    set_instruction(0x8E, 4, "STX", stx, absolute);
+    set_instruction(0x86, 3, " STX", stx, zero_page);
+    set_instruction(0x96, 4, " STX", stx, zero_page_y);
+    set_instruction(0x8E, 4, " STX", stx, absolute);
 
     /* STY - Store Y Register. */
-    set_instruction(0x84, 3, "STY", sty, zero_page);
-    set_instruction(0x94, 4, "STY", sty, zero_page_x);
-    set_instruction(0x8C, 4, "STY", sty, absolute);
+    set_instruction(0x84, 3, " STY", sty, zero_page);
+    set_instruction(0x94, 4, " STY", sty, zero_page_x);
+    set_instruction(0x8C, 4, " STY", sty, absolute);
 
     /* TAX - Transfer Accumulator to X. */
-    set_instruction(0xAA, 2, "TAX", tax, implied);
+    set_instruction(0xAA, 2, " TAX", tax, implied);
 
     /* TAY - Transfer Accumulator to Y. */
-    set_instruction(0xA8, 2, "TAY", tay, implied);
+    set_instruction(0xA8, 2, " TAY", tay, implied);
 
     /* TSX - Transfer Stack Pointer to X. */
-    set_instruction(0xBA, 2, "TSX", tsx, implied);
+    set_instruction(0xBA, 2, " TSX", tsx, implied);
 
     /* TSA - Transfer X to Accumulator. */
-    set_instruction(0x8A, 2, "TXA", txa, implied);
+    set_instruction(0x8A, 2, " TXA", txa, implied);
 
     /* TXS - Transfer X to Stack Pointer. */
-    set_instruction(0x9A, 2, "TXS", txs, implied);
+    set_instruction(0x9A, 2, " TXS", txs, implied);
 
     /* TYA - Transfer Y to Accumulator. */
-    set_instruction(0x98, 2, "TYA", tya, implied);
+    set_instruction(0x98, 2, " TYA", tya, implied);
 }
 
 /* -----------------------------------------------------------------
@@ -866,7 +920,8 @@ void cpu_init(void) {
 
     /* Initialize CPU status. */
     cpu = (CPU) { 0x0000, 0xFD, 0x00, 0x00, 0x00 };
-    cpu.PC = mem_read_16(RESET_VECTOR);
+    /*cpu.PC = mem_read_16(RESET_VECTOR);*/
+    cpu.PC = 0xC000;
     wait_cycles = 0;
 
     /* Clear RAM. */
@@ -889,13 +944,12 @@ void cpu_cycle(int num_cycles) {
             else {
                 extra_cycles = 0;
                 opcode = mem_read(cpu.PC);
-                LOG_CPU("%04X  %02X ", cpu.PC, opcode);
+                LOG_CPU(9, "%04X  %02X", cpu.PC, opcode);
                 (*cpu_addressing_table[opcode])();
+                LOG_CPU(33, "A:%02X X:%02X Y:%02X P:%02X SP:%02X CYC:%3d\n",
+                    cpu.A, cpu.X, cpu.Y, flg_get_status(false), cpu.S, ppu.dot);
                 (*cpu_instruction_table[opcode])();
                 wait_cycles = cpu_cycles_table[opcode] + extra_cycles;
-                LOG_CPU("                    ");
-                LOG_CPU("A:%02X X:%02X Y:%02X P:%02X SP:%02X\n",
-                    cpu.A, cpu.X, cpu.Y, flg_get_status(false), cpu.S);
             }
         }
 

@@ -9,10 +9,10 @@ static Operation C_type; /* Type of the last operation that affected the C flag.
 inline bool flg_is_C   (void) {
     switch (C_type) {
         case ADC:   return C & 0xF00;
-        case CMP:   return !(C & 0x80);
+        case CMP:   return C >= 0;
         case ROL:   return C & 0x80;
         case ROR:   return C & 0x01;
-        case SBC:   return !(C & 0xF00);
+        case SBC:   return !(C & 0x80);
         default:    return false;
     }
 }

@@ -138,8 +138,8 @@ int main(int argc, char *argv[]) {
             }
         }
 
-        ppu_cycle(3);
         cpu_cycle(1);
+        ppu_cycle(3);
 
         if (ppu.scanline == 241 && ppu.dot < 3) {
             draw_display(renderer);
