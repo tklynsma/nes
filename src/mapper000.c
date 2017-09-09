@@ -38,7 +38,7 @@ static void mapper000_cpu_write(Cartridge *cartridge, word address, byte data) {
 }
 
 static byte mapper000_ppu_read(Cartridge *cartridge, word address) {
-    /* PPU 0x0000-0x1FFF: 8KB CHR ROM. */
+    /* PPU 0x0000-0x1FFF: 8KB CHR ROM (RAM supported/writable). */
     if (address < 0x2000) {
         return cartridge->chr_rom[address];
     }
@@ -48,7 +48,7 @@ static byte mapper000_ppu_read(Cartridge *cartridge, word address) {
 }
 
 static void mapper000_ppu_write(Cartridge *cartridge, word address, byte data) {
-    /* PPU 0x0000-0x1FFF: 8KB CHR ROM. */
+    /* PPU 0x0000-0x1FFF: 8KB CHR ROM (RAM supported/writeable). */
     if (address < 0x2000) {
         cartridge->chr_rom[address] = data;
     }
