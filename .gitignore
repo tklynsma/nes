@@ -1,3 +1,4 @@
 build/*
 roms/*
+cpu_log.txt
 log.txt
