@@ -1,5 +1,3 @@
-#include <stdio.h>
-
 #include "../../include/memory.h"
 #include "../../include/ppu.h"
 #include "../../include/ppu_internal.h"

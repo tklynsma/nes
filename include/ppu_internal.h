@@ -47,6 +47,20 @@ typedef struct {
     byte oam_addr;                  /* 0x2003: OAM address. */
     byte read_buffer;               /* Internal read buffer. */
     byte latch;                     /* PPUGenLatch. */
+
+    /* PPU Rendering. */
+    int scanline;                   /* [0, 261]: 262 scanlines per frame. */
+    int dot;                        /* [0, 340]: 341 cycles per scanline. */
+    bool odd_frame;                 /* The current frame is an odd frame. */
+
+    /* Background rendering. */
+    byte nametable_byte;            /* The current nametable byte being fetched. */
+    byte attribute_byte;            /* The current attribute byte being fetched. */
+    byte low_tile;                  /* The current tile low pattern being fetched. */
+    byte high_tile;                 /* The current tile high pattern being fetched. */
+
+    word low_tile_register;         /* ... */
+    word high_tile_register;
 } PPU;
 
 extern PPU ppu;

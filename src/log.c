@@ -57,3 +57,21 @@ void log_error(const char *message, ...) {
     printf("Error occurred, exiting...\n");
     return exit(EXIT_FAILURE);
 }
+
+void log_cpu(const char *message, ...) {
+    FILE *file = fopen(CPU_LOGFILE, "a");
+
+    if (file != NULL) {
+        va_list args;
+        va_start(args, message);
+        char message_[256];
+        vsnprintf(message_, 256, message, args);
+        va_end(args);
+
+        fputs(message_, file);
+        fclose(file);
+    }
+    else {
+        perror("Error opening log file.");
+    }
+}

@@ -1,3 +1,4 @@
+#include <stdio.h>
 #include <stdbool.h>
 #include "../include/cpu.h"
 #include "../include/memory.h"
@@ -11,8 +12,83 @@
 
 PPU ppu;
 
-static int scanline = 0;
-static int dot = 0;
+byte display[256][240];
+
+static inline bool is_rendering_background(void) {
+    return ppu.mask_background;
+}
+
+static inline bool is_rendering_sprites(void) {
+    return ppu.mask_sprites;
+}
+
+static inline bool is_rendering(void) {
+    return ppu.mask_background || ppu.mask_sprites;
+}
+
+static inline bool is_prerender_line(void) {
+    return ppu.scanline == 261;
+}
+
+static inline bool is_visible_line(void) {
+    return ppu.scanline < 240;
+}
+
+static inline bool is_render_line(void) {
+    return is_prerender_line() || is_visible_line();
+}
+
+/* -----------------------------------------------------------------
+ * Horizontal / vertical increments.
+ * -------------------------------------------------------------- */
+
+/* Coarse X increment. */
+static inline void increment_x(void) {
+    if ((ppu.v & 0x001F) == 31) {
+        ppu.v &= ~0x001F;
+        ppu.v ^= 0x0400;
+    } else {
+        ppu.v += 1;
+    }
+}
+
+/* Y increment. */
+static inline void increment_y(void) {
+    /* If fine Y < 7 then increment fine Y. */
+    if ((ppu.v & 0x7000) != 0x7000) {
+        ppu.v += 0x1000;
+    }
+
+    /* Otherwise, update coarse Y. */
+    else {
+        ppu.v &= ~0x7000;
+        byte coarse_y = (ppu.v & 0x03E0) >> 5;
+
+        if (coarse_y == 29) {
+            coarse_y = 0;
+            ppu.v ^= 0x0800;
+        }
+        else if (coarse_y == 31) {
+            coarse_y = 0;
+        }
+        else {
+            coarse_y += 1;
+        }
+
+        ppu.v = (ppu.v & ~0x03E0) | (coarse_y << 5);
+    }
+}
+
+/* V increment after 0x2007 access. */
+static inline void increment_v(void) {
+    if (is_rendering() && is_render_line()) {
+        increment_x();
+        increment_y();
+    }
+    else {
+        ppu.v += ppu.ctrl_increment;
+    }
+}
 
 /* -----------------------------------------------------------------
  * PPU read/write.
@@ -74,17 +150,17 @@ static inline void write_oam_data(byte data) {
 static inline void write_ppu_scroll(byte data) {
     /* First write (w is 0). */ 
     if (!ppu.w) {
-        /* t: ....... ...HGFED = d: HGFED... */
-        /* x:              CBA = d: .....CBA */
-        /* w:                  = 1           */
+        /* t: ....... ...HGFED = d: HGFED... *
+         * x:              CBA = d: .....CBA *
+         * w:                  = 1           */
         ppu.t = (ppu.t & 0xFFE0) | (data >> 3);
         ppu.x = data & 0x07;
         ppu.w = true;
     }
     /* Second write (w is 1). */
     else {
-        /* t: CBA..HG FED..... = d: HGFEDCBA */
-        /* w:                  = 0           */
+        /* t: CBA..HG FED..... = d: HGFEDCBA *
+         * w:                  = 0           */
         ppu.t = (ppu.t & 0x8FFF) | ((data & 0x07) << 12);
         ppu.t = (ppu.t & 0xFC1F) | ((data & 0xF8) << 2);
         ppu.w = false;
@@ -95,17 +171,17 @@ static inline void write_ppu_scroll(byte data) {
 static inline void write_ppu_address(byte data) {
     /* First write (w is 0). */
     if (!ppu.w) {
-        /* t: .FEDCBA ........ = d: ..FEDCBA */
-        /* t: X...... ........ = 0           */
-        /* w:                  = 1           */
-        ppu.t = (ppu.t & 0x00FF) | ((data & 0x3F) << 8);
+        /* t: .FEDCBA ........ = d: ..FEDCBA *
+         * t: X...... ........ = 0           *
+         * w:                  = 1           */
+        ppu.t = (ppu.t & 0x80FF) | ((data & 0x3F) << 8);
         ppu.w = true;
     }
     /* Second write (w is 1). */
     else {
-        /* t: ....... HGFEDCBA = d: HGFEDCBA */
-        /* v                   = t           */
-        /* w:                  = 0           */
+        /* t: ....... HGFEDCBA = d: HGFEDCBA *
+         * v                   = t           *
+         * w:                  = 0           */
         ppu.t = (ppu.t & 0xFF00) | data;
         ppu.v = ppu.t;
         ppu.w = false;
@@ -123,14 +199,14 @@ static inline byte read_ppu_data() {
         ppu.read_buffer = vrm_read(ppu.v - 0x1000);
     }
 
-    ppu.v += ppu.ctrl_increment;
+    increment_v();
     return ppu.latch;
 }
 
 /* 0x2007: PPUDATA (write). */
 static inline void write_ppu_data(byte data) {
     vrm_write(ppu.v, data);
-    ppu.v += ppu.ctrl_increment;
+    increment_v();
 }
 
 /* 0x4014: OAMDMA (read). */
@@ -148,7 +224,7 @@ inline void ppu_dma_write(byte data) {
     ppu.latch = data;
 }
 
-/* Read PPU register (0x2000 - 0x2007). */
+/* 0x2000-0x2007: Read PPU register. */
 inline byte ppu_io_read(word address) {
     switch (address & 0x7) {
         case 2: return read_ppu_status();
@@ -158,7 +234,7 @@ inline byte ppu_io_read(word address) {
     return ppu.latch;
 }
 
-/* Write PPU register (0x2000 - 0x2007). */
+/* 0x2000-0x2007: Write PPU register. */
 inline void ppu_io_write(word address, byte data) {
     switch (address & 0x7) {
         case 0: write_ppu_ctrl(data);      break;
@@ -172,22 +248,22 @@ inline void ppu_io_write(word address, byte data) {
     ppu.latch = data;
 }
 
-/* Read PPU palette (0x3F00 - 0x3FFF). */
+/* 0x3F00-0x3FFF: Read PPU palette. */
 inline byte ppu_palette_read(word address) {
     return ppu.palette[address & 0x1F];
 }
 
-/* Write PPU palette (0x3F00 - 0x3FFF). */
+/* 0x3F00-0x3FFF: Write PPU palette. */
 inline void ppu_palette_write(word address, byte data) {
     ppu.palette[address & 0x1F] = data;
 }
 
-/* Read PPU nametable (0x2000 - 0x3EFF). */
+/* 0x2000-0x3EFF: Read PPU nametable. */
 inline byte ppu_nametable_read(word address) {
     return ppu.nametable[address & 0x1FFF];
 }
 
-/* Write PPU nametable (0x2000 - 0x3EFF). */
+/* 0x2000-0x3EFF: Write PPU nametable. */
 inline void ppu_nametable_write(word address, byte data) {
     ppu.nametable[address & 0x1FFF] = data;
 }
@@ -196,79 +272,149 @@ inline void ppu_nametable_write(word address, byte data) {
  * PPU rendering.
  * -------------------------------------------------------------- */
 
-static inline byte fetch_nametable_byte(void) {
-    return vrm_read(0x2000 | (ppu.v & 0x0FFF));
+static inline void copy_horizontal(void) {
+    /* v: ....F.. ...EDCBA = t: ....F.. ...EDCBA */
+    ppu.v = (ppu.v & 0xFBE0) | (ppu.t & ~0xFBE0);
 }
 
-static inline byte fetch_attribute_byte(void) {
-    word address = 0x23C0 | (ppu.v & 0x0C00) | ((ppu.v >> 4) & 0x38) | ((ppu.v >> 2) & 0x07);
-    return vrm_read(address);
+static inline void copy_vertical(void) {
+    /* v: IHGF.ED CBA..... = t: IHGF.ED CBA..... */
+    ppu.v = (ppu.v & 0x841F) | (ppu.t & ~0x841F);
 }
 
-static inline void increment_x(void) {
-    if ((ppu.v & 0x001F) == 31) {
-        ppu.v &= ~0x001F;
-        ppu.v ^= 0x0400;
-    } else {
-        ppu.v += 1;
+static inline void fetch_nametable_byte(void) {
+    ppu.nametable_byte = vrm_read(0x2000 | (ppu.v & 0x0FFF));
+}
+
+static inline void fetch_attribute_byte(void) {
+    word address = 0x23C0 | (ppu.v & 0x0C00);   /* Offset and nametable select. */
+    address = address | ((ppu.v >> 4) & 0x38);  /* High 3 bits of coarse Y (Y/4). */
+    address = address | ((ppu.v >> 2) & 0x07);  /* High 3 bits of coarse X (X/4). */
+    ppu.attribute_byte = vrm_read(address);
+}
+
+static inline void fetch_low_tile(void) {
+    byte fine_y = (ppu.v >> 12) & 0x7;
+    word address = ppu.ctrl_background_addr + 16 * ppu.nametable_byte + fine_y;
+    ppu.low_tile = vrm_read(address);
+}
+
+static inline void fetch_high_tile(void) {
+    byte fine_y = (ppu.v >> 12) & 0x7;
+    word address = ppu.ctrl_background_addr + 16 * ppu.nametable_byte + fine_y;
+    ppu.high_tile = vrm_read(address + 8);
+}
+
+/* Store the background tile data in the shift registers. */
+static inline void store_tile_data(void) {
+    ppu.low_tile_register  |= (ppu.low_tile  << 8);
+    ppu.high_tile_register |= (ppu.high_tile << 8);
+}
+
+/* Update the scanline and dot counters after every cycle. */
+void ppu_tick(void) {
+    ppu.dot++;
+    if (ppu.dot > 340) {
+        ppu.dot = 0;
+
+        ppu.scanline++;
+        if (ppu.scanline > 261) {
+            ppu.scanline = 0;
+
+            /* Skip the first pre-render cycle on odd frames. */
+            ppu.odd_frame = !ppu.odd_frame;
+            if (ppu.odd_frame && is_rendering()) {
+                ppu.dot = 1;
+            }
+        }
     }
 }
 
-static inline void increment_y(void) {
-    /* If fine Y < 7 then increment fine Y. */
-    if ((ppu.v & 0x7000) != 0x7000) {
-        ppu.v += 0x1000;
-    }
+void render_dot(void) {
+    int x = ppu.dot - 1, y = ppu.scanline;
 
-    /* Otherwise, update coarse Y. */
+    if (ppu.dot - 1 < 8 && !ppu.mask_background_L) {
+        display[x][y] = 0x00;
+    }
     else {
-        ppu.v &= ~0x7000;
-        byte coarse_y = (ppu.v & 0x03E0) >> 5;
-
-        if (coarse_y == 29) {
-            coarse_y = 0;
-            ppu.v ^= 0x0800;
-        }
-        else if (coarse_y == 31) {
-            coarse_y = 0;
-        }
-        else {
-            coarse_y += 1;
-        }
-        ppu.v = (ppu.v & ~0x03E0) | (coarse_y << 5);
+        byte bit_0 = (ppu.low_tile_register  >> ppu.x) & 0x1;
+        byte bit_1 = (ppu.high_tile_register >> ppu.x) & 0x1;
+        display[x][y] = (bit_1 << 1) | bit_0;
     }
 }
 
-/*static inline void render_background_tile(byte display[256][240], byte tile, int row, int col) {
-    word pattern_table_addr = ppu.ctrl_background_addr | (tile << 8);
-    word pattern_table_addr = ppu.ctrl_background_addr | (tile << 4) | ((ppu.v >> 12) & 7);
-    for (int i = 0; i < 8; i++) {
-        byte bit_pattern_0 = vrm_read(pattern_table_addr);
-        byte bit_pattern_1 = vrm_read(pattern_table_addr | 8);
-        for (int j = 0; j < 8; j++) {
-            bool bit_0 = bit_pattern_0 & (0x1 << j);
-            bool bit_1 = bit_pattern_1 & (0x1 << j);
-            display[8 * col + j][8 * row + i] = (bit_1 << 1) | bit_0;
+void ppu_cycle(int num_cycles) {
+    while (num_cycles > 0) {
+        if (is_rendering()) {
+            /* Pre-render scanline (261). */
+            if (is_prerender_line()) {
+                /* During dots 280 to 340 of the pre-render scanline: If rendering
+                * if enabled, the PPU copies all bits related to vertical position
+                * from t to v. */
+                if (ppu.dot >= 280 && ppu.dot <= 340) {
+                    copy_vertical();
+                }
+            }
+
+            /* Visible dots (1-256) in visible scanlines (0-239). */
+            if (is_visible_line() && ppu.dot > 0 && ppu.dot <= 256) {
+                render_dot();
+            }
+
+            /* Render scanlines (0-239, 261). */
+            if (is_visible_line() || is_prerender_line()) {
+                /* During dots 1 to 256 and dots 321 to 336: the data for each tile is
+                * fetched. Every 8 dots the horizontal position in v is incremented and
+                * the tile data is stored in the shift registers. */
+                if ((ppu.dot > 0 && ppu.dot < 257) || (ppu.dot > 320 && ppu.dot < 337)) {
+                    ppu.low_tile_register  >> 1;
+                    ppu.high_tile_register >> 1;
+
+                    switch (ppu.dot % 8) {
+                        case 1: fetch_nametable_byte(); break;
+                        case 3: fetch_attribute_byte(); break;
+                        case 5: fetch_low_tile();       break;
+                        case 7: fetch_high_tile();      break;
+                        case 0: store_tile_data();
+                                increment_x();          break;
+                    }
+                }
+
+                /* At dot 256 of each scanline: If rendering is enabled, the PPU
+                * increments the vertical position in v. */
+                if (ppu.dot == 256) {
+                    increment_y();
+                }
+
+                /* At dot 257 of each scanline: If rendering is enabled, the PPU
+                * copies all bits related to horizontal position from t to v. */
+                else if (ppu.dot == 257) {
+                    copy_horizontal();
+                }
+            }
         }
-        pattern_table_addr++;
+
+        /* Start of vblank (scanline 241, dot 1). */
+        if (ppu.scanline == 241 && ppu.dot == 1) {
+            ppu.status_vblank = true;
+            cpu_set_nmi();
+        }
+    
+        /* End of vblank (scanline 261, dot 1). */ 
+        if (is_prerender_line() && ppu.dot == 1) {
+            ppu.status_vblank   = false;
+            ppu.status_zero_hit = false;
+            ppu.status_overflow = false;
+        }
+
+        ppu_tick();
+        num_cycles--;
     }
 }
 
-static inline void render_background(byte display[256][240]) {
-    for (int row = 0; row < 30; row++) {
-        for (int col = 0; col < 32; col++) {
-            byte tile = fetch_nametable_byte();
-            render_background_tile(display, tile, row, col);
-            increment_coarse_x();
-        }
-    }
+inline byte ppu_get_pixel(int x, int y) {
+    return display[x][y];
 }
-
-void ppu_render_frame(byte display[256][240]) {
-    render_background(display);
-}*/
-
-void ppu_render_frame(byte display[256][240]) {}
 
 /* -----------------------------------------------------------------
  * Initialize/Reset PPU.
@@ -293,6 +439,8 @@ void ppu_init(void) {
     for (int i = 0; i < NAMETABLE_SIZE; i++) {
         ppu.nametable[i] = 0xFF;
     }
+
+    ppu.scanline = ppu.dot = 0;
 }
 
 void ppu_reset(void) {

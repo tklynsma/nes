@@ -18,6 +18,8 @@ void ppu_palette_write(word address, byte data);
 byte ppu_nametable_read(word address);
 void ppu_nametable_write(word address, byte data);
 
-void ppu_render_frame(byte display[256][240]);
+void ppu_cycle(int num_cycles);
+
+byte ppu_get_pixel(int x, int y);
 
 #endif /* PPU_H */

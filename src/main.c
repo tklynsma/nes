@@ -3,8 +3,10 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include "../include/cpu.h"
+#include "../include/memory.h"
 #include "../include/nes.h"
 #include "../include/ppu.h"
+#include "../include/ppu_internal.h"
 
 #define SCALE          2
 #define DISPLAY_WIDTH  256
@@ -84,7 +86,7 @@ static void draw_display(SDL_Renderer* renderer) {
     /* Draw all pixels on the display. */
     for (int x = 0; x < DISPLAY_WIDTH; x++) {
         for (int y = 0; y < DISPLAY_HEIGHT; y++) {
-            setRenderDrawColor(renderer, PALETTE[display[x][y]]);
+            setRenderDrawColor(renderer, PALETTE[ppu_get_pixel(x, y)]);
             SDL_Rect pixel = {SCALE * x, SCALE * y, SCALE, SCALE};
             SDL_RenderFillRect(renderer, &pixel);
         }
@@ -136,11 +138,12 @@ int main(int argc, char *argv[]) {
             }
         }
 
-        ppu_render_frame(display);
-        cpu_set_nmi();
-        cpu_cycle(29781);
-        draw_display(renderer);
-        SDL_Delay(200);
+        ppu_cycle(3);
+        cpu_cycle(1);
+
+        if (ppu.scanline == 241 && ppu.dot < 3) {
+            draw_display(renderer);
+        }
     }
 
     close();
