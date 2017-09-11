@@ -26,6 +26,7 @@ static char *cpu_names_table[256];
 CPU cpu;                    /* CPU status. */
 
 static bool nmi = false;    /* NMI interrupt. */
+static bool running = true; /* Run / halt the CPU. */
 
 static byte opcode;         /* Current opcode being executed. */
 static byte operand;        /* Operand (8 bit) of the instruction. */
@@ -235,7 +236,7 @@ static inline void zero_page_y(void) {
 
 /* Invalid / unimplemented instruction. */
 static inline void invalid(void) {
-    LOG_ERROR("Invalid instruction at %x.", cpu.PC);
+    LOG_ERROR("Invalid opcode %02X at %04X.", opcode, cpu.PC - 1);
 }
 
 /* Branching instructions. */
@@ -541,14 +542,12 @@ static inline void rts(void) {
 
 /* SBC - Subtract with Carry. */
 static inline void sbc(void) {
-    operand = mem_read(address);
-    int result = (int8_t) cpu.A - (int8_t) operand - (int8_t) !flg_is_C();
+    operand = mem_read(address) ^ 0xFF;
+    int result = cpu.A + operand + flg_is_C();
     flg_update_ZN(result);
-    flg_update_C (result, SBC);
-    byte a = cpu.A   == 0 ? 0xFF : cpu.A;
-    byte b = operand == 0 ? 0xFF : -operand;
-    flg_update_V (result, a, b);
-    cpu.A = result;
+    flg_update_C (result, ADC);
+    flg_update_V (result, cpu.A, operand);
+    cpu.A = result & 0xFF;
 }
 
 /* SEC - Set Carry Flag. */
@@ -612,6 +611,138 @@ static inline void tya(void) {
     flg_update_ZN(cpu.A = cpu.Y);
 }
 
+/* -----------------------------------------------------------------
+ * Unofficial CPU instructions.
+ * -------------------------------------------------------------- */
+
+/* ALR - AND and Shift Right. */
+static inline void alr(void) {
+    operand = mem_read(address);
+    cpu.A &= operand;
+    flg_update_C (cpu.A, ROR);
+    flg_update_ZN(cpu.A >>= 1);
+}
+
+/* ANC - AND with Carry */
+static inline void anc(void) {
+    operand = mem_read(address);
+    flg_update_C (cpu.A, ROL);
+    flg_update_ZN(cpu.A &= operand);
+}
+
+/* ARR - AND and Rotate Right. */
+static inline void arr(void) {
+    operand = mem_read(address);
+    cpu.A &= operand;
+
+    /* Set the V-flag according to (A and #{imm}) + #{imm}. */
+    flg_update_V (cpu.A + operand, cpu.A, operand);
+
+    bool carry = flg_is_C();
+    flg_update_C (cpu.A, ROL);
+    cpu.A = (cpu.A >> 1) | (carry << 7);
+    flg_update_ZN(cpu.A);
+}
+
+/* AXS - AND X with Accumulator and Subtract. */
+static inline void axs(void) {
+    operand = mem_read(address);
+    cpu.X &= cpu.A;
+    cpu.X -= operand;
+    flg_update_C (cpu.X, CMP);
+    flg_update_ZN(cpu.X);
+}
+
+/* DCP - Decrement and compare. */
+static inline void dcp(void) {
+    operand = mem_read(address);
+    mem_write(address, --operand);
+    flg_update_C (cpu.A - operand, CMP);
+    flg_update_ZN(cpu.A - operand);
+    extra_cycles = 0;
+}
+
+/* LAX - Load Accumulator and X. */
+static inline void lax(void) {
+    flg_update_ZN(cpu.A = cpu.X = mem_read(address));
+}
+
+/* HLT - Halt. */
+static inline void hlt(void) {
+    LOG_ERROR("CPU halted, opcode: %02X.", opcode);
+}
+
+/* ISB - Increment and Subtract. */
+static inline void isb(void) {
+    operand = mem_read(address);
+    mem_write(address, ++operand);
+    extra_cycles = 0;
+
+    operand ^= 0xFF;
+    int result = cpu.A + operand + flg_is_C();
+    flg_update_ZN(result);
+    flg_update_C (result, ADC);
+    flg_update_V (result, cpu.A, operand);
+    cpu.A = result & 0xFF;
+}
+
+/* RLA - Rotate Left and AND. */
+static inline void rla(void) {
+    operand = mem_read(address);
+    bool carry = flg_is_C();
+    flg_update_C (operand, ROL);
+    operand = (operand << 1) | carry;
+    mem_write(address, operand);
+    flg_update_ZN(cpu.A &= operand);
+    extra_cycles = 0;
+}
+
+/* RRA - Rotate Right and Add. */
+static inline void rra(void) {
+    bool carry = flg_is_C();
+    operand = mem_read(address);
+    flg_update_C (operand, ROR);
+    operand = (operand >> 1) | (carry << 7);
+    mem_write(address, operand);
+
+    int result = cpu.A + operand + flg_is_C();
+    flg_update_ZN(result);
+    flg_update_C (result, ADC);
+    flg_update_V (result, cpu.A, operand);
+    cpu.A = result & 0xFF;
+    extra_cycles = 0;
+}
+
+/* SAX - Store Accumulator AND X. */
+static inline void sax(void) {
+    mem_write(address, cpu.A & cpu.X);
+}
+
+/* SLO - Shift Left and Inclusive OR. */
+static inline void slo(void) {
+    operand = mem_read(address);
+    flg_update_C (operand, ROL);
+    mem_write(address, operand <<= 1);
+    flg_update_ZN(cpu.A |= operand);
+    extra_cycles = 0;
+}
+
+/* SRE - Shift Right and Exclusive OR. */
+static inline void sre(void) {
+    operand = mem_read(address);
+    flg_update_C (operand, ROR);
+    mem_write(address, operand >>= 1);
+    flg_update_ZN(cpu.A ^= operand);
+    extra_cycles = 0;
+}
+
+/* XAA - Transfer X to Accumulator and AND. */
+static inline void xaa(void) {
+    operand = mem_read(address);
+    cpu.A = cpu.X & operand;
+    flg_update_ZN(cpu.A);
+}
+
 /* --------------------------------------------------------------------
  * CPU operation tables.
  * ----------------------------------------------------------------- */
@@ -627,7 +758,7 @@ static inline void set_instruction(byte opcode, int cycles,
 static inline void init_instruction_table(void) {
     /* Reset CPU tables. */
     for (int opcode = 0; opcode < 256; opcode++) {
-        set_instruction(opcode, 2, "****", nop, implied);
+        set_instruction(opcode, 2, "****", invalid, implied);
     }
 
     /* ADC - Add with Carry. */
@@ -640,6 +771,13 @@ static inline void init_instruction_table(void) {
     set_instruction(0x61, 6, " ADC", adc, indirect_x);
     set_instruction(0x71, 5, " ADC", adc, indirect_y);
 
+    /* ALR - AND and Shift Right. */
+    set_instruction(0x4B, 2, "*ALR", alr, immediate);
+
+    /* ANC - AND with Carry. */
+    set_instruction(0x0B, 2, "*ANC", anc, immediate);
+    set_instruction(0x2B, 2, "*ANC", anc, immediate);
+
     /* AND - Logical AND. */
     set_instruction(0x29, 2, " AND", and, immediate);
     set_instruction(0x25, 3, " AND", and, zero_page);
@@ -650,12 +788,18 @@ static inline void init_instruction_table(void) {
     set_instruction(0x21, 6, " AND", and, indirect_x);
     set_instruction(0x31, 5, " AND", and, indirect_y);
 
+    /* ARR - AND and Rotate Right. */
+    set_instruction(0x6B, 2, "*ARR", arr, immediate);
+
     /* ASL - Arithmetic Shift Left. */
     set_instruction(0x0A, 2, " ASL", asl_a, accumulator);
     set_instruction(0x06, 5, " ASL", asl_m, zero_page);
     set_instruction(0x16, 6, " ASL", asl_m, zero_page_x);
     set_instruction(0x0E, 6, " ASL", asl_m, absolute);
     set_instruction(0x1E, 7, " ASL", asl_m, absolute_x);
+
+    /* AXS - AND X with Accumulator and Subtract. */
+    set_instruction(0xCB, 2, "*AXS", axs, immediate);
 
     /* BCC - Branch if Carry Clear. */
     set_instruction(0x90, 2, " BCC", bcc, relative);
@@ -732,6 +876,15 @@ static inline void init_instruction_table(void) {
     /* DEY - Decrement Y Register. */
     set_instruction(0x88, 2, " DEY", dey, implied);
 
+    /* DCP - Decrement and Compare. */
+    set_instruction(0xC7, 5, "*DCP", dcp, zero_page);
+    set_instruction(0xD7, 6, "*DCP", dcp, zero_page_x);
+    set_instruction(0xCF, 6, "*DCP", dcp, absolute);
+    set_instruction(0xDF, 7, "*DCP", dcp, absolute_x);
+    set_instruction(0xDB, 7, "*DCP", dcp, absolute_y);
+    set_instruction(0xC3, 8, "*DCP", dcp, indirect_x);
+    set_instruction(0xD3, 8, "*DCP", dcp, indirect_y);
+
     /* EOR - Exclusive OR. */
     set_instruction(0x49, 2, " EOR", eor, immediate);
     set_instruction(0x45, 3, " EOR", eor, zero_page);
@@ -741,6 +894,20 @@ static inline void init_instruction_table(void) {
     set_instruction(0x59, 4, " EOR", eor, absolute_y);
     set_instruction(0x41, 6, " EOR", eor, indirect_x);
     set_instruction(0x51, 5, " EOR", eor, indirect_y);
+
+    /* HLT - Halt. */
+    set_instruction(0x02, 0, "*HLT", hlt, immediate);
+    set_instruction(0x12, 0, "*HLT", hlt, immediate);
+    set_instruction(0x22, 0, "*HLT", hlt, immediate);
+    set_instruction(0x32, 0, "*HLT", hlt, immediate);
+    set_instruction(0x42, 0, "*HLT", hlt, immediate);
+    set_instruction(0x52, 0, "*HLT", hlt, immediate);
+    set_instruction(0x62, 0, "*HLT", hlt, immediate);
+    set_instruction(0x72, 0, "*HLT", hlt, immediate);
+    set_instruction(0x92, 0, "*HLT", hlt, immediate);
+    set_instruction(0xB2, 0, "*HLT", hlt, immediate);
+    set_instruction(0xD2, 0, "*HLT", hlt, immediate);
+    set_instruction(0xF2, 0, "*HLT", hlt, immediate);
 
     /* INC - Increment Memory. */
     set_instruction(0xE6, 5, " INC", inc, zero_page);
@@ -754,12 +921,30 @@ static inline void init_instruction_table(void) {
     /* INY - Increment Y Register. */
     set_instruction(0xC8, 2, " INY", iny, implied);
 
+    /* ISB - Increment and subtract. */
+    set_instruction(0xE7, 5, "*ISB", isb, zero_page);
+    set_instruction(0xF7, 6, "*ISB", isb, zero_page_x);
+    set_instruction(0xEF, 6, "*ISB", isb, absolute);
+    set_instruction(0xFF, 7, "*ISB", isb, absolute_x);
+    set_instruction(0xFB, 7, "*ISB", isb, absolute_y);
+    set_instruction(0xE3, 8, "*ISB", isb, indirect_x);
+    set_instruction(0xF3, 8, "*ISB", isb, indirect_y);
+
     /* JMP - Jump. */
     set_instruction(0x4C, 3, " JMP", jmp, absolute);
     set_instruction(0x6C, 5, " JMP", jmp, indirect);
 
     /* JSR - Jump to Subroutine. */
     set_instruction(0x20, 6, " JSR", jsr, absolute);
+
+    /* LAX - Load Accumulator and X. */
+    set_instruction(0xAB, 2, "*LAX", lax, immediate);
+    set_instruction(0xA7, 3, "*LAX", lax, zero_page);
+    set_instruction(0xB7, 4, "*LAX", lax, zero_page_y);
+    set_instruction(0xAF, 4, "*LAX", lax, absolute);
+    set_instruction(0xBF, 4, "*LAX", lax, absolute_y);
+    set_instruction(0xA3, 6, "*LAX", lax, indirect_x);
+    set_instruction(0xB3, 5, "*LAX", lax, indirect_y);
 
     /* LDA - Load Accumulator. */
     set_instruction(0xA9, 2, " LDA", lda, immediate);
@@ -794,6 +979,33 @@ static inline void init_instruction_table(void) {
 
     /* NOP - No Operation. */
     set_instruction(0xEA, 2, " NOP", nop, implied);
+    set_instruction(0x1A, 2, "*NOP", nop, implied);
+    set_instruction(0x3A, 2, "*NOP", nop, implied);
+    set_instruction(0x5A, 2, "*NOP", nop, implied);
+    set_instruction(0x7A, 2, "*NOP", nop, implied);
+    set_instruction(0xDA, 2, "*NOP", nop, implied);
+    set_instruction(0xFA, 2, "*NOP", nop, implied);
+    set_instruction(0x80, 2, "*NOP", nop, immediate);
+    set_instruction(0x82, 2, "*NOP", nop, immediate);
+    set_instruction(0xC2, 2, "*NOP", nop, immediate);
+    set_instruction(0xE2, 2, "*NOP", nop, immediate);
+    set_instruction(0x89, 2, "*NOP", nop, immediate);
+    set_instruction(0x04, 3, "*NOP", nop, zero_page);
+    set_instruction(0x44, 3, "*NOP", nop, zero_page);
+    set_instruction(0x64, 3, "*NOP", nop, zero_page);
+    set_instruction(0x14, 4, "*NOP", nop, zero_page_x);
+    set_instruction(0x34, 4, "*NOP", nop, zero_page_x);
+    set_instruction(0x54, 4, "*NOP", nop, zero_page_x);
+    set_instruction(0x74, 4, "*NOP", nop, zero_page_x);
+    set_instruction(0xD4, 4, "*NOP", nop, zero_page_x);
+    set_instruction(0xF4, 4, "*NOP", nop, zero_page_x);
+    set_instruction(0x0C, 4, "*NOP", nop, absolute);
+    set_instruction(0x1C, 4, "*NOP", nop, absolute_x);
+    set_instruction(0x3C, 4, "*NOP", nop, absolute_x);
+    set_instruction(0x5C, 4, "*NOP", nop, absolute_x);
+    set_instruction(0x7C, 4, "*NOP", nop, absolute_x);
+    set_instruction(0xDC, 4, "*NOP", nop, absolute_x);
+    set_instruction(0xFC, 4, "*NOP", nop, absolute_x);
 
     /* ORA - Logical Inclusive OR. */
     set_instruction(0x09, 2, " ORA", ora, immediate);
@@ -817,6 +1029,15 @@ static inline void init_instruction_table(void) {
     /* PLP - Pull Processor Status. */
     set_instruction(0x28, 4, " PLP", plp, implied);
 
+    /* RLA - Rotate Left and AND. */
+    set_instruction(0x27, 5, "*RLA", rla, zero_page);
+    set_instruction(0x37, 6, "*RLA", rla, zero_page_x);
+    set_instruction(0x2F, 6, "*RLA", rla, absolute);
+    set_instruction(0x3F, 7, "*RLA", rla, absolute_x);
+    set_instruction(0x3B, 7, "*RLA", rla, absolute_y);
+    set_instruction(0x23, 8, "*RLA", rla, indirect_x);
+    set_instruction(0x33, 8, "*RLA", rla, indirect_y);
+
     /* ROL - Rotate Left. */
     set_instruction(0x2A, 2, " ROL", rol_a, accumulator);
     set_instruction(0x26, 5, " ROL", rol_m, zero_page);
@@ -831,14 +1052,30 @@ static inline void init_instruction_table(void) {
     set_instruction(0x6E, 6, " ROR", ror_m, absolute);
     set_instruction(0x7E, 7, " ROR", ror_m, absolute_x);
 
+    /* RRA - Rotate Right and Add. */
+    set_instruction(0x67, 5, "*RRA", rra, zero_page);
+    set_instruction(0x77, 6, "*RRA", rra, zero_page_x);
+    set_instruction(0x6F, 6, "*RRA", rra, absolute);
+    set_instruction(0x7F, 7, "*RRA", rra, absolute_x);
+    set_instruction(0x7B, 7, "*RRA", rra, absolute_y);
+    set_instruction(0x63, 8, "*RRA", rra, indirect_x);
+    set_instruction(0x73, 8, "*RRA", rra, indirect_y);
+
     /* RTI - Return from Interrupt. */
     set_instruction(0x40, 6, " RTI", rti, implied);
 
     /* RTS - Return from Subroutine. */
     set_instruction(0x60, 6, " RTS", rts, implied);
 
+    /* SAX - Store Accumulator AND X. */
+    set_instruction(0x87, 3, "*SAX", sax, zero_page);
+    set_instruction(0x97, 4, "*SAX", sax, zero_page_y);
+    set_instruction(0x8F, 4, "*SAX", sax, absolute);
+    set_instruction(0x83, 6, "*SAX", sax, indirect_x); 
+
     /* SBC - Subtract with Carry. */
     set_instruction(0xE9, 2, " SBC", sbc, immediate);
+    set_instruction(0xEB, 2, "*SBC", sbc, immediate);
     set_instruction(0xE5, 3, " SBC", sbc, zero_page);
     set_instruction(0xF5, 4, " SBC", sbc, zero_page_x);
     set_instruction(0xED, 4, " SBC", sbc, absolute);
@@ -855,6 +1092,24 @@ static inline void init_instruction_table(void) {
 
     /* SEI - Set Interrupt Disable. */
     set_instruction(0x78, 2, " SEI", sei, implied);
+
+    /* SLO - Shift Left and Inclusive OR. */
+    set_instruction(0x07, 5, "*SLO", slo, zero_page);
+    set_instruction(0x17, 6, "*SLO", slo, zero_page_x);
+    set_instruction(0x0F, 6, "*SLO", slo, absolute);
+    set_instruction(0x1F, 7, "*SLO", slo, absolute_x);
+    set_instruction(0x1B, 7, "*SLO", slo, absolute_y);
+    set_instruction(0x03, 8, "*SLO", slo, indirect_x);
+    set_instruction(0x13, 8, "*SLO", slo, indirect_y);
+
+    /* SRE - Shift Right and Exclusive OR. */
+    set_instruction(0x47, 5, "*SRE", sre, zero_page);
+    set_instruction(0x57, 6, "*SRE", sre, zero_page_x);
+    set_instruction(0x4F, 6, "*SRE", sre, absolute);
+    set_instruction(0x5F, 7, "*SRE", sre, absolute_x);
+    set_instruction(0x5B, 7, "*SRE", sre, absolute_y);
+    set_instruction(0x43, 8, "*SRE", sre, indirect_x);
+    set_instruction(0x53, 8, "*SRE", sre, indirect_y);
 
     /* STA - Store Accumulator. */
     set_instruction(0x85, 3, " STA", sta, zero_page);
@@ -892,6 +1147,9 @@ static inline void init_instruction_table(void) {
 
     /* TYA - Transfer Y to Accumulator. */
     set_instruction(0x98, 2, " TYA", tya, implied);
+
+    /* XAA - Transfer X to Accumulator and AND. */
+    set_instruction(0x8B, 2, "*XAA", xaa, implied);
 }
 
 /* -----------------------------------------------------------------

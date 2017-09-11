@@ -12,7 +12,6 @@ inline bool flg_is_C   (void) {
         case CMP:   return C >= 0;
         case ROL:   return C & 0x80;
         case ROR:   return C & 0x01;
-        case SBC:   return !(C & 0x80);
         default:    return false;
     }
 }
