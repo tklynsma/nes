@@ -397,7 +397,9 @@ void ppu_cycle(int num_cycles) {
         /* Start of vblank (scanline 241, dot 1). */
         if (ppu.scanline == 241 && ppu.dot == 1) {
             ppu.status_vblank = true;
-            cpu_set_nmi();
+            if (ppu.ctrl_nmi) {
+                cpu_set_nmi();
+            }
         }
     
         /* End of vblank (scanline 261, dot 1). */ 

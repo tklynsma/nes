@@ -90,6 +90,8 @@ static inline void absolute(void) {
     LOG_CPU(6, "%02X %02X", address & 0xFF, address >> 8);
     if (opcode == 0x20 || opcode == 0x4C) /* JMP or JSR absolute. */
          LOG_CPU(33, "%s $%04X", cpu_names_table[opcode], address);
+    else if (address >= 0x2000 && address < 0x4020)
+         LOG_CPU(33, "%s $%04X = %02X", cpu_names_table[opcode], address, 0xFF);
     else LOG_CPU(33, "%s $%04X = %02X", cpu_names_table[opcode], address, operand);
 }
 
@@ -100,8 +102,8 @@ static inline void absolute_x(void) {
     cpu.PC += 3;
 
     LOG_CPU(6, "%02X %02X", (address - cpu.X) & 0xFF, (address - cpu.X) >> 8);
-    LOG_CPU(33, "%s $%04X,X @ %04X = %02X", cpu_names_table[opcode],
-        address - cpu.X, address, operand);
+    LOG_CPU(33, "%s $%04X,X @ %04X = %02X", cpu_names_table[opcode], address - cpu.X,
+        address, operand);
 }
 
 static inline void absolute_y(void) {
@@ -111,8 +113,8 @@ static inline void absolute_y(void) {
     cpu.PC += 3;
 
     LOG_CPU(6, "%02X %02X", (address - cpu.Y) & 0xFF, (address - cpu.Y) >> 8);
-    LOG_CPU(33, "%s $%04X,Y @ %04X = %02X", cpu_names_table[opcode],
-        address - cpu.Y, address, operand);
+    LOG_CPU(33, "%s $%04X,Y @ %04X = %02X", cpu_names_table[opcode], address - cpu.Y, 
+        address, operand);
 }
 
 static inline void accumulator(void) {
@@ -149,8 +151,7 @@ static inline void indirect(void) {
     }
 
     LOG_CPU(6, "%02X %02X", address_ & 0xFF, address_ >> 8);
-    LOG_CPU(33, "%s ($%04X) = %04X", cpu_names_table[opcode],
-        address_, address);
+    LOG_CPU(33, "%s ($%04X) = %04X", cpu_names_table[opcode], address_, address);
 }
 
 static inline void indirect_x(void) {
@@ -185,8 +186,7 @@ static inline void relative(void) {
     cpu.PC += 2;
 
     LOG_CPU(6, "%02X", operand);
-    LOG_CPU(33, "%s $%04X", cpu_names_table[opcode],
-        cpu.PC + (int8_t) operand);
+    LOG_CPU(33, "%s $%04X", cpu_names_table[opcode], cpu.PC + (int8_t) operand);
 }
 
 static inline void zero_page(void) {
@@ -195,8 +195,7 @@ static inline void zero_page(void) {
     cpu.PC += 2;
 
     LOG_CPU(6, "%02X", address);
-    LOG_CPU(33, "%s $%02X = %02X", cpu_names_table[opcode],
-        address, operand);
+    LOG_CPU(33, "%s $%02X = %02X", cpu_names_table[opcode], address, operand);
 }
 
 static inline void zero_page_x(void) {
@@ -206,8 +205,8 @@ static inline void zero_page_x(void) {
     cpu.PC += 2;
 
     LOG_CPU(6, "%02X", address_);
-    LOG_CPU(33, "%s $%02X,X @ %02X = %02X", cpu_names_table[opcode],
-        address_, address, operand);
+    LOG_CPU(33, "%s $%02X,X @ %02X = %02X", cpu_names_table[opcode], address_,
+        address, operand);
 }
 
 static inline void zero_page_y(void) {
@@ -217,8 +216,8 @@ static inline void zero_page_y(void) {
     cpu.PC += 2;
 
     LOG_CPU(6, "%02X", address_);
-    LOG_CPU(33, "%s $%02X,Y @ %02X = %02X", cpu_names_table[opcode],
-        address_, address, operand);
+    LOG_CPU(33, "%s $%02X,Y @ %02X = %02X", cpu_names_table[opcode], address_,
+        address, operand);
 }
 
 /* -----------------------------------------------------------------
@@ -1122,9 +1121,7 @@ static inline void init_instruction_table(void) {
  * -------------------------------------------------------------- */
 
 void cpu_set_nmi(void) {
-    if (!flg_is_I()) {
-        nmi = true;
-    }
+    nmi = true;
 }
 
 void cpu_reset(void) {
@@ -1168,8 +1165,9 @@ void cpu_cycle(int num_cycles) {
                 opcode = mem_read(cpu.PC);
                 LOG_CPU(9, "%04X  %02X", cpu.PC, opcode);
                 (*cpu_addressing_table[opcode])();
-                LOG_CPU(33, "A:%02X X:%02X Y:%02X P:%02X SP:%02X CYC:%3d\n",
-                    cpu.A, cpu.X, cpu.Y, flg_get_status(false), cpu.S, ppu.dot);
+                LOG_CPU(33, "A:%02X X:%02X Y:%02X P:%02X SP:%02X CYC:%3d SL:%d\n",
+                    cpu.A, cpu.X, cpu.Y, flg_get_status(false), cpu.S, ppu.dot,
+                    ppu.scanline);
                 (*cpu_instruction_table[opcode])();
                 wait_cycles = cpu_cycles_table[opcode] + extra_cycles;
             }
