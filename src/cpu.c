@@ -65,8 +65,6 @@ static inline word pop_address(void) {
  * -------------------------------------------------------------- */
 
 static inline void interrupt(word vector) {
-    LOG_CPU(32, "---INTERRUPT---");
-
     push_address(cpu.PC + 1);
     push(flg_get_status(false));
     cpu.PC = mem_read_16(vector);
@@ -639,7 +637,7 @@ static inline void lax(void) {
 
 /* HLT - Halt. */
 static inline void hlt(void) {
-    LOG_ERROR("CPU halted, opcode: %02X.", opcode);
+    LOG_ERROR("CPU halted, opcode %02X at %04X.", opcode, cpu.PC);
 }
 
 /* ISB - Increment and Subtract. */

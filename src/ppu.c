@@ -27,15 +27,15 @@ static inline bool is_rendering(void) {
 }
 
 static inline bool is_prerender_line(void) {
-    return ppu.scanline == 261;
+    return ppu.scanline == -1;
 }
 
 static inline bool is_visible_line(void) {
-    return ppu.scanline < 240;
+    return ppu.scanline >= 0 && ppu.scanline < 240;
 }
 
 static inline bool is_render_line(void) {
-    return is_prerender_line() || is_visible_line();
+    return ppu.scanline < 240;
 }
 
 /* -----------------------------------------------------------------
@@ -318,8 +318,8 @@ void ppu_tick(void) {
         ppu.dot = 0;
 
         ppu.scanline++;
-        if (ppu.scanline > 261) {
-            ppu.scanline = 0;
+        if (ppu.scanline > 260) {
+            ppu.scanline = -1;
 
             /* Skip the first pre-render cycle on odd frames. */
             ppu.odd_frame = !ppu.odd_frame;
@@ -343,73 +343,77 @@ void render_dot(void) {
     }
 }
 
+void ppu_step(void) {
+    if (is_rendering()) {
+        /* Pre-render scanline (261). */
+        if (is_prerender_line()) {
+            /* During dots 280 to 340 of the pre-render scanline: If rendering
+            * if enabled, the PPU copies all bits related to vertical position
+            * from t to v. */
+            if (ppu.dot >= 280 && ppu.dot <= 340) {
+                copy_vertical();
+            }
+        }
+
+        /* Visible dots (1-256) in visible scanlines (0-239). */
+        if (is_visible_line() && ppu.dot > 0 && ppu.dot <= 256) {
+            render_dot();
+        }
+
+        /* Render scanlines (0-239, 261). */
+        if (is_visible_line() || is_prerender_line()) {
+            /* During dots 1 to 256 and dots 321 to 336: the data for each tile is
+            * fetched. Every 8 dots the horizontal position in v is incremented and
+            * the tile data is stored in the shift registers. */
+            if ((ppu.dot > 0 && ppu.dot < 257) || (ppu.dot > 320 && ppu.dot < 337)) {
+                ppu.low_tile_register  >> 1;
+                ppu.high_tile_register >> 1;
+
+                switch (ppu.dot % 8) {
+                    case 1: fetch_nametable_byte(); break;
+                    case 3: fetch_attribute_byte(); break;
+                    case 5: fetch_low_tile();       break;
+                    case 7: fetch_high_tile();      break;
+                    case 0: store_tile_data();
+                            increment_x();          break;
+                }
+            }
+
+            /* At dot 256 of each scanline: If rendering is enabled, the PPU
+            * increments the vertical position in v. */
+            if (ppu.dot == 256) {
+                increment_y();
+            }
+
+            /* At dot 257 of each scanline: If rendering is enabled, the PPU
+            * copies all bits related to horizontal position from t to v. */
+            else if (ppu.dot == 257) {
+                copy_horizontal();
+            }
+        }
+    }
+
+    /* Start of vblank (scanline 241, dot 1). */
+    if (ppu.scanline == 241 && ppu.dot == 1) {
+        ppu.status_vblank = true;
+        if (ppu.ctrl_nmi) {
+            cpu_set_nmi();
+        }
+    }
+    
+    /* End of vblank (scanline 261, dot 1). */ 
+    if (is_prerender_line() && ppu.dot == 1) {
+        ppu.status_vblank   = false;
+        ppu.status_zero_hit = false;
+        ppu.status_overflow = false;
+    }
+
+    ppu_tick();
+}
+
 void ppu_cycle(int num_cycles) {
     while (num_cycles > 0) {
-        if (is_rendering()) {
-            /* Pre-render scanline (261). */
-            if (is_prerender_line()) {
-                /* During dots 280 to 340 of the pre-render scanline: If rendering
-                * if enabled, the PPU copies all bits related to vertical position
-                * from t to v. */
-                if (ppu.dot >= 280 && ppu.dot <= 340) {
-                    copy_vertical();
-                }
-            }
-
-            /* Visible dots (1-256) in visible scanlines (0-239). */
-            if (is_visible_line() && ppu.dot > 0 && ppu.dot <= 256) {
-                render_dot();
-            }
-
-            /* Render scanlines (0-239, 261). */
-            if (is_visible_line() || is_prerender_line()) {
-                /* During dots 1 to 256 and dots 321 to 336: the data for each tile is
-                * fetched. Every 8 dots the horizontal position in v is incremented and
-                * the tile data is stored in the shift registers. */
-                if ((ppu.dot > 0 && ppu.dot < 257) || (ppu.dot > 320 && ppu.dot < 337)) {
-                    ppu.low_tile_register  >> 1;
-                    ppu.high_tile_register >> 1;
-
-                    switch (ppu.dot % 8) {
-                        case 1: fetch_nametable_byte(); break;
-                        case 3: fetch_attribute_byte(); break;
-                        case 5: fetch_low_tile();       break;
-                        case 7: fetch_high_tile();      break;
-                        case 0: store_tile_data();
-                                increment_x();          break;
-                    }
-                }
-
-                /* At dot 256 of each scanline: If rendering is enabled, the PPU
-                * increments the vertical position in v. */
-                if (ppu.dot == 256) {
-                    increment_y();
-                }
-
-                /* At dot 257 of each scanline: If rendering is enabled, the PPU
-                * copies all bits related to horizontal position from t to v. */
-                else if (ppu.dot == 257) {
-                    copy_horizontal();
-                }
-            }
-        }
-
-        /* Start of vblank (scanline 241, dot 1). */
-        if (ppu.scanline == 241 && ppu.dot == 1) {
-            ppu.status_vblank = true;
-            if (ppu.ctrl_nmi) {
-                cpu_set_nmi();
-            }
-        }
-    
-        /* End of vblank (scanline 261, dot 1). */ 
-        if (is_prerender_line() && ppu.dot == 1) {
-            ppu.status_vblank   = false;
-            ppu.status_zero_hit = false;
-            ppu.status_overflow = false;
-        }
-
-        ppu_tick();
+        ppu_step();
         num_cycles--;
     }
 }
@@ -442,7 +446,8 @@ void ppu_init(void) {
         ppu.nametable[i] = 0xFF;
     }
 
-    ppu.scanline = ppu.dot = 0;
+    ppu.dot      =  0;
+    ppu.scanline = -1;
 }
 
 void ppu_reset(void) {
