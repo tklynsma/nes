@@ -1,8 +1,8 @@
 #ifndef LOG_H
 #define LOG_H
 
-#define LOGFILE     "../log.txt"
-#define CPU_LOGFILE "../cpu_log.txt"
+#define LOGFILE     "../log/info.log"
+#define CPU_LOGFILE "../log/cpu.log"
 
 #define LOGGING 3
 
