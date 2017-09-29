@@ -1,5 +1,6 @@
 #include <stdio.h>
 #include <stdbool.h>
+
 #include "../include/cpu.h"
 #include "../include/memory.h"
 #include "../include/ppu.h"
@@ -287,9 +288,9 @@ static inline void fetch_nametable_byte(void) {
 }
 
 static inline void fetch_attribute_byte(void) {
-    word address = 0x23C0 | (ppu.v & 0x0C00);   /* Offset and nametable select. */
-    address = address | ((ppu.v >> 4) & 0x38);  /* High 3 bits of coarse Y (Y/4). */
-    address = address | ((ppu.v >> 2) & 0x07);  /* High 3 bits of coarse X (X/4). */
+    word address = 0x23C0 | (ppu.v & 0x0C00);
+    address = address | ((ppu.v >> 4) & 0x38);
+    address = address | ((ppu.v >> 2) & 0x07);
     ppu.attribute_byte = vrm_read(address);
 }
 
@@ -366,8 +367,8 @@ void ppu_step(void) {
             * fetched. Every 8 dots the horizontal position in v is incremented and
             * the tile data is stored in the shift registers. */
             if ((ppu.dot > 0 && ppu.dot < 257) || (ppu.dot > 320 && ppu.dot < 337)) {
-                ppu.low_tile_register  >> 1;
-                ppu.high_tile_register >> 1;
+                ppu.low_tile_register  >>= 1;
+                ppu.high_tile_register >>= 1;
 
                 switch (ppu.dot % 8) {
                     case 1: fetch_nametable_byte(); break;
