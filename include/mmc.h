@@ -7,6 +7,7 @@
 
 void mmc_init(Cartridge *cartridge_);
 
+byte mmc_cpu_get  (word address);
 byte mmc_cpu_read (word address);
 void mmc_cpu_write(word address, byte data);
 

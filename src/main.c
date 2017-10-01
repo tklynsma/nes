@@ -138,8 +138,10 @@ int main(int argc, char *argv[]) {
             }
         }
 
-        cpu_cycle(1);
-        ppu_cycle(3);
+        unsigned long long timestamp = cpu_get_ticks();
+        cpu_execute();
+        ppu_cycle(3 * (cpu_get_ticks() - timestamp));
+        /* PPU catchup. */
 
         if (ppu.scanline == 241 && ppu.dot < 3) {
             draw_display(renderer);

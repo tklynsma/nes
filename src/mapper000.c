@@ -66,6 +66,7 @@ void mapper000_init(Cartridge *cartridge) {
 
     /* Initialize mapper. */
     cartridge->cpu_read  = mapper000_cpu_read;
+    cartridge->cpu_get   = mapper000_cpu_read;
     cartridge->cpu_write = mapper000_cpu_write;
     cartridge->ppu_read  = mapper000_ppu_read;
     cartridge->ppu_write = mapper000_ppu_write;

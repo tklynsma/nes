@@ -26,6 +26,7 @@ typedef struct Cartridge {
 
     /* Mapper functions. */
     byte (*cpu_read) (struct Cartridge*, word);
+    byte (*cpu_get)  (struct Cartridge*, word);
     void (*cpu_write)(struct Cartridge*, word, byte);
     byte (*ppu_read) (struct Cartridge*, word);
     void (*ppu_write)(struct Cartridge*, word, byte);

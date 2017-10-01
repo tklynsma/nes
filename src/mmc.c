@@ -36,6 +36,10 @@ inline byte mmc_cpu_read(word address) {
     return (*cartridge->cpu_read)(cartridge, address);
 }
 
+inline byte mmc_cpu_get(word address) {
+    return (*cartridge->cpu_get)(cartridge, address);
+}
+
 inline void mmc_cpu_write(word address, byte data) {
     if (cartridge->cpu_write != NULL) {
         (*cartridge->cpu_write)(cartridge, address, data);

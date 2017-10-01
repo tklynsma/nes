@@ -27,6 +27,31 @@ inline word mem_read_16(word address) {
     return (mem_read(address + 1) << 8) | mem_read(address);
 }
 
+/* Memory access without side effects. */
+inline byte mem_get(word address) {
+    /* 0x0000 - 0x1FFF: RAM. */
+    if (address < 0x2000) {
+        return cpu_ram_read(address & 0x7FF);
+    }
+
+    /* 0x2000 - 0x401F: I/O registers. */
+    else if (address < 0x4000) {
+        return ppu_io_get(address);
+    }
+    else if (address == 0x4014) {
+        return ppu_dma_read();
+    }
+
+    /* 0x4020 - 0xFFFF: Cartridge space. */
+    else if (address >= 0x4020) {
+        return mmc_cpu_get(address);
+    }
+}
+
+inline word mem_get_16(word address) {
+    return (mem_get(address + 1) << 8) | mem_get(address);
+}
+
 inline void mem_write(word address, byte data) {
     /* 0x0000 - 0x1FFF: RAM. */
     if (address < 0x2000) {

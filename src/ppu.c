@@ -131,6 +131,15 @@ static inline byte read_ppu_status() {
     return ppu.latch;
 }
 
+/* 0x2002: PPUSTATUS (get). */
+static inline byte get_ppu_status() {
+    byte result = ppu.latch & 0x1F;
+    result |= (ppu.status_vblank   << 7);
+    result |= (ppu.status_zero_hit << 6);
+    result |= (ppu.status_overflow << 5);
+    return result;
+}
+
 /* 0x2003: OAMADDR (write). */
 static inline void write_oam_address(byte data) {
     ppu.oam_addr = data; 
@@ -140,6 +149,11 @@ static inline void write_oam_address(byte data) {
 static inline byte read_oam_data() {
     ppu.latch = ppu.oam[ppu.oam_addr];
     return ppu.latch;
+}
+
+/* 0x2004: OAMDATA (get). */
+static inline byte get_oam_data() {
+    return ppu.oam[ppu.oam_addr];
 }
 
 /* 0x2004: OAMDATA (write). */
@@ -196,12 +210,17 @@ static inline byte read_ppu_data() {
         ppu.read_buffer = vrm_read(ppu.v);
     }
     else {
-        ppu.latch = vrm_read(ppu.v);
+        ppu.latch = ppu_palette_read(ppu.v);
         ppu.read_buffer = vrm_read(ppu.v - 0x1000);
     }
 
     increment_v();
     return ppu.latch;
+}
+
+/* 0x2007: PPUDATA (get). */
+static inline byte get_ppu_data() {
+    return (ppu.v & 0x3FFF) < 0x3F00 ? ppu.read_buffer : ppu_palette_read(ppu.v);
 }
 
 /* 0x2007: PPUDATA (write). */
@@ -231,6 +250,16 @@ inline byte ppu_io_read(word address) {
         case 2: return read_ppu_status();
         case 4: return read_oam_data();
         case 7: return read_ppu_data();
+    }
+    return ppu.latch;
+}
+
+/* 0x2000-0x2007: Read PPU register (without side-effects). */
+inline byte ppu_io_get(word address) {
+    switch (address & 0x7) {
+        case 2: return get_ppu_status();
+        case 4: return get_oam_data();
+        case 7: return get_ppu_data();
     }
     return ppu.latch;
 }
