@@ -345,8 +345,8 @@ static inline void fetch_high_tile(void) {
 
 /* Store the background tile data in the shift registers. */
 static inline void store_tile_data(void) {
-    ppu.low_tile_register  |= (ppu.low_tile  << 8);
-    ppu.high_tile_register |= (ppu.high_tile << 8);
+    ppu.low_tile_register  |= ppu.low_tile;
+    ppu.high_tile_register |= ppu.high_tile;
 }
 
 /* Update the scanline and dot counters after every cycle. */
@@ -368,6 +368,7 @@ void ppu_tick(void) {
     }
 }
 
+/* Render the current pixel using the stored tile data. */
 void render_dot(void) {
     int x = ppu.dot - 1, y = ppu.scanline;
 
@@ -375,12 +376,13 @@ void render_dot(void) {
         display[x][y] = 0x00;
     }
     else {
-        byte bit_0 = (ppu.low_tile_register  >> ppu.x) & 0x1;
-        byte bit_1 = (ppu.high_tile_register >> ppu.x) & 0x1;
+        byte bit_0 = (ppu.low_tile_register  << ppu.x) >> 15;
+        byte bit_1 = (ppu.high_tile_register << ppu.x) >> 15;
         display[x][y] = (bit_1 << 1) | bit_0;
     }
 }
 
+/* Execute one PPU cycle. */
 void ppu_step(void) {
     if (is_rendering()) {
         /* Pre-render scanline (261). */
@@ -404,8 +406,8 @@ void ppu_step(void) {
             * fetched. Every 8 dots the horizontal position in v is incremented and
             * the tile data is stored in the shift registers. */
             if ((ppu.dot > 0 && ppu.dot < 257) || (ppu.dot > 320 && ppu.dot < 337)) {
-                ppu.low_tile_register  >>= 1;
-                ppu.high_tile_register >>= 1;
+                ppu.low_tile_register  <<= 1;
+                ppu.high_tile_register <<= 1;
 
                 switch (ppu.dot % 8) {
                     case 1: fetch_nametable_byte(); break;
@@ -449,6 +451,7 @@ void ppu_step(void) {
     ppu_tick();
 }
 
+/* Catch up PPU cycle to current CPU cycle. */
 void ppu_catch_up(void) {
     unsigned long long cpu_ticks = cpu_get_ticks();
     for (int i = 0; i < 3 * (cpu_ticks - ppu_ticks); i++) {
