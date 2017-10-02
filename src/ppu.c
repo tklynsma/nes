@@ -15,6 +15,8 @@ PPU ppu;
 
 byte display[256][240];
 
+unsigned long long ppu_ticks;
+
 static inline bool is_rendering_background(void) {
     return ppu.mask_background;
 }
@@ -236,6 +238,8 @@ inline byte ppu_dma_read(void) {
 
 /* 0x4014: OAMDMA (write). */
 inline void ppu_dma_write(byte data) {
+    ppu_catch_up();
+
     word mem_address = data << 8;
     for (int i = 0; i < 256; i++) {
         ppu.oam[ppu.oam_addr++] = mem_read(mem_address++);
@@ -246,6 +250,8 @@ inline void ppu_dma_write(byte data) {
 
 /* 0x2000-0x2007: Read PPU register. */
 inline byte ppu_io_read(word address) {
+    ppu_catch_up();
+
     switch (address & 0x7) {
         case 2: return read_ppu_status();
         case 4: return read_oam_data();
@@ -266,6 +272,8 @@ inline byte ppu_io_get(word address) {
 
 /* 0x2000-0x2007: Write PPU register. */
 inline void ppu_io_write(word address, byte data) {
+    ppu_catch_up();
+
     switch (address & 0x7) {
         case 0: write_ppu_ctrl(data);      break;
         case 1: write_ppu_mask(data);      break;
@@ -441,11 +449,12 @@ void ppu_step(void) {
     ppu_tick();
 }
 
-void ppu_cycle(int num_cycles) {
-    while (num_cycles > 0) {
+void ppu_catch_up(void) {
+    unsigned long long cpu_ticks = cpu_get_ticks();
+    for (int i = 0; i < 3 * (cpu_ticks - ppu_ticks); i++) {
         ppu_step();
-        num_cycles--;
     }
+    ppu_ticks = cpu_ticks;
 }
 
 inline byte ppu_get_pixel(int x, int y) {

@@ -19,6 +19,7 @@
 typedef void (*Function)(void);
 static Function cpu_instruction_table[256];
 static Function cpu_addressing_table[256];
+static Function cpu_logging_table[256];
 static char *cpu_names_table[256];
 
 CPU cpu;                    /* CPU status. */
@@ -83,9 +84,10 @@ static inline word pop_address(void) {
  * -------------------------------------------------------------- */
 
 static inline void interrupt(word vector) {
+    cycles += 2;
     push_address(cpu.PC + 1);
     push(flg_get_status(false));
-    cpu.PC = mem_read_16(vector);
+    cpu.PC = read_16(vector);
     flg_set_I();
 }
 
@@ -93,38 +95,54 @@ static inline void interrupt(word vector) {
  * CPU logging.
  * -------------------------------------------------------------- */
 
-#define ARGUMENT mem_get(cpu.PC - 1)
-#define ARGUMENT_16 mem_get_16(cpu.PC - 2)
+#define ARG    mem_get   (cpu.PC + 1)
+#define ARG_16 mem_get_16(cpu.PC + 1)
 
-#define LOG_INSTRUCTION_1() LOG_CPU(20, "%04X  %02X       %s", \
-    cpu.PC - 1, opcode, cpu_names_table[opcode]);
-#define LOG_INSTRUCTION_2() LOG_CPU(20, "%04X  %02X %02X    %s", \
-    cpu.PC - 2, opcode, mem_get(cpu.PC - 1), cpu_names_table[opcode]);
+#define LOG_INSTRUCTION_1() LOG_CPU(20, "%04X  %02X       %s",     \
+    cpu.PC, opcode, cpu_names_table[opcode]);
+#define LOG_INSTRUCTION_2() LOG_CPU(20, "%04X  %02X %02X    %s",   \
+    cpu.PC, opcode, mem_get(cpu.PC + 1), cpu_names_table[opcode]);
 #define LOG_INSTRUCTION_3() LOG_CPU(20, "%04X  %02X %02X %02X %s", \
-    cpu.PC - 3, opcode, mem_get(cpu.PC - 2), mem_get(cpu.PC - 1),  \
+    cpu.PC, opcode, mem_get(cpu.PC + 1), mem_get(cpu.PC + 2),      \
     cpu_names_table[opcode]);
 
+#define log_absolute_write    log_absolute
+#define log_absolute_x_modify log_absolute_x
+#define log_absolute_x_write  log_absolute_x
+#define log_absolute_y_write  log_absolute_y
+#define log_indirect_x_write  log_indirect_x
+#define log_zero_page_write   log_zero_page
+#define log_zero_page_x_write log_zero_page_x
+#define log_zero_page_y_write log_zero_page_y
+
 static inline void log_absolute(void) {
+    word a = ARG_16;
+
     LOG_INSTRUCTION_3();
-    if (address >= 0x2000 && address < 0x4020)
-         LOG_CPU(28, "$%04X = %02X", address, 0xFF);
-    else LOG_CPU(28, "$%04X = %02X", address, mem_get(address));
+    if (a >= 0x2000 && a < 0x4020)
+         LOG_CPU(28, "$%04X = %02X", a, 0xFF);
+    else LOG_CPU(28, "$%04X = %02X", a, mem_get(a));
 }
 
 static inline void log_absolute_jump(void) {
-    LOG_CPU(20, "%04X  %02X %02X %02X %s", cpu.PC - 2, opcode, mem_get(cpu.PC - 1),
-        mem_get(cpu.PC), cpu_names_table[opcode]);
-    LOG_CPU(28, "$%04X", (mem_get(cpu.PC) << 8) | mem_get(cpu.PC - 1));
+    LOG_INSTRUCTION_3();
+    LOG_CPU(28, "$%04X", ARG_16);
 }
 
 static inline void log_absolute_x(void) {
+    word a1 = ARG_16;
+    word a2 = a1 + cpu.X;
+
     LOG_INSTRUCTION_3();
-    LOG_CPU(28, "$%04X,X @ %04X = %02X", (word) (address - cpu.X), address, mem_get(address));
+    LOG_CPU(28, "$%04X,X @ %04X = %02X", a1, a2, mem_get(a2));
 }
 
 static inline void log_absolute_y(void) {
+    word a1 = ARG_16;
+    word a2 = a1 + cpu.Y;
+
     LOG_INSTRUCTION_3();
-    LOG_CPU(28, "$%04X,Y @ %04X = %02X", (word) (address - cpu.Y), address, mem_get(address));
+    LOG_CPU(28, "$%04X,Y @ %04X = %02X", a1, a2, mem_get(a2));
 }
 
 static inline void log_accumulator(void) {
@@ -134,7 +152,7 @@ static inline void log_accumulator(void) {
 
 static inline void log_immediate(void) {
     LOG_INSTRUCTION_2();
-    LOG_CPU(28, "#$%02X", operand);
+    LOG_CPU(28, "#$%02X", ARG);
 }
 
 static inline void log_implied(void) {
@@ -143,45 +161,70 @@ static inline void log_implied(void) {
 }
 
 static inline void log_indirect(void) {
+    word a1 = ARG_16;
+    byte l  = mem_get(a1);
+    byte h  = (a1 & 0xFF == 0xFF) ? mem_get(a1 - 0xFF) : mem_get(a1 + 1);
+    word a2 = (h << 8) | l;
+
     LOG_INSTRUCTION_3();
-    LOG_CPU(28, "($%04X) = %04X", ARGUMENT_16, address);
+    LOG_CPU(28, "($%04X) = %04X", a1, a2);
 }
 
 static inline void log_indirect_x(void) {
+    byte a1 = ARG;
+    byte l  = cpu.ram[(a1 + cpu.X) & 0xFF];
+    byte h  = cpu.ram[(a1 + cpu.X + 1) & 0xFF];
+    word a2 = (h << 8) | l;
+
     LOG_INSTRUCTION_2();
     LOG_CPU(28, "($%02X,X) @ %02X = %04X = %02X",
-        ARGUMENT, (ARGUMENT + cpu.X) & 0xFF, address, mem_get(address));
+        a1, (a1 + cpu.X) & 0xFF, a2, mem_get(a2));
 }
 
 static inline void log_indirect_y(void) {
+    byte a1 = ARG;
+    byte l  = cpu.ram[a1];
+    byte h  = cpu.ram[(a1 + 1) & 0xFF];
+    word a2 = ((h << 8) | l) + cpu.Y;
+
     LOG_INSTRUCTION_2();
     LOG_CPU(28, "($%02X),Y = %04X @ %04X = %02X",
-        ARGUMENT, address - cpu.Y, address, mem_get(address));
+        a1, (h << 8) | l, a2, mem_get(a2));
 }
 
 static inline void log_relative(void) {
     LOG_INSTRUCTION_2();
-    LOG_CPU(28, "$%04X", cpu.PC + (int8_t) operand);
+    LOG_CPU(28, "$%04X", (word) (cpu.PC + 2 + (int8_t) ARG));
 }
 
 static inline void log_zero_page(void) {
+    byte a = ARG;
     LOG_INSTRUCTION_2();
-    LOG_CPU(28, "$%02X = %02X", address, mem_get(address));
+    LOG_CPU(28, "$%02X = %02X", a, mem_get(a));
 }
 
 static inline void log_zero_page_x(void) {
+    byte a1 = ARG;
+    byte a2 = (ARG + cpu.X) & 0xFF;
+
     LOG_INSTRUCTION_2();
-    LOG_CPU(28, "$%02X,X @ %02X = %02X", ARGUMENT, address, mem_get(address));
+    LOG_CPU(28, "$%02X,X @ %02X = %02X", a1, a2, mem_get(a2));
 }
 
 static inline void log_zero_page_y(void) {
+    byte a1 = ARG;
+    byte a2 = (a1 + cpu.Y) & 0xFF;
+
     LOG_INSTRUCTION_2();
-    LOG_CPU(28, "$%02X,Y @ %02X = %02X", ARGUMENT, address, mem_get(address));
+    LOG_CPU(28, "$%02X,Y @ %02X = %02X", a1, a2, mem_get(a2));
 }
 
-static inline void log_status(void) {
-    LOG_CPU(33, "A:%02X X:%02X Y:%02X P:%02X SP:%02X CYC:%3d\n",
-        cpu.A, cpu.X, cpu.Y, flg_get_status(false), cpu.S, ppu.dot);
+static inline void log_operation(void) {
+    opcode = mem_get(cpu.PC);
+    (*cpu_logging_table[opcode])();
+    LOG_CPU(33, "A:%02X X:%02X Y:%02X P:%02X SP:%02X CYC:%3d SL:%d\n",
+        cpu.A, cpu.X, cpu.Y, flg_get_status(false), cpu.S, ppu.dot,
+        ppu.scanline);
 }
 
 /* -----------------------------------------------------------------
@@ -195,20 +238,14 @@ static inline bool is_diff_page(word address1, word address2) {
 static inline void absolute(void) {
     address = fetch_16();
     operand = read(address);
-
-    log_absolute();
 }
 
 static inline void absolute_write(void) {
     address = fetch_16();
-
-    log_absolute();
 }
 
 static inline void absolute_jump(void) {
     lo = fetch();
-
-    log_absolute_jump();
 }
 
 static inline void absolute_x(void) {
@@ -220,8 +257,6 @@ static inline void absolute_x(void) {
     if (is_diff_page(address, address - cpu.X)) {
         operand = read(address);
     }
-
-    log_absolute_x();
 }
 
 static inline void absolute_x_modify(void) {
@@ -230,8 +265,6 @@ static inline void absolute_x_modify(void) {
     operand = read(address);
     address = ((hi << 8) | lo) + cpu.X;
     operand = read(address);
-
-    log_absolute_x();
 }
 
 static inline void absolute_x_write(void) {
@@ -239,8 +272,6 @@ static inline void absolute_x_write(void) {
     address = (hi << 8) | ((lo + cpu.X) & 0xFF);
     operand = read(address);
     address = ((hi << 8) | lo) + cpu.X;
-
-    log_absolute_x();
 }
 
 static inline void absolute_y(void) {
@@ -252,8 +283,6 @@ static inline void absolute_y(void) {
     if (is_diff_page(address, address - cpu.Y)) {
         operand = read(address);
     }
-
-    log_absolute_y();
 }
 
 static inline void absolute_y_write(void) {
@@ -261,26 +290,18 @@ static inline void absolute_y_write(void) {
     address = (hi << 8) | ((lo + cpu.Y) & 0xFF);
     operand = read(address);
     address = ((hi << 8) | lo) + cpu.Y;
-
-    log_absolute_y();
 }
 
 static inline void accumulator(void) {
     fetch_dummy(); /* Read next instruction byte and throw it away. */
-
-    log_accumulator();
 }
 
 static inline void immediate(void) {
     operand = fetch();
-
-    log_immediate();
 }
 
 static inline void implied(void) {
     fetch_dummy(); /* Read next instruction byte and throw it away. */
-
-    log_implied();
 }
 
 static inline void indirect(void) {
@@ -294,8 +315,6 @@ static inline void indirect(void) {
     else {
         address = read_16(address);
     }
-
-    log_indirect();
 }
 
 static inline void indirect_x(void) {
@@ -306,8 +325,6 @@ static inline void indirect_x(void) {
     address = (hi << 8) | lo;
     cycles += 2;
     operand = read(address);
-
-    log_indirect_x();
 }
 
 static inline void indirect_x_write(void) {
@@ -317,8 +334,6 @@ static inline void indirect_x_write(void) {
     hi = cpu.ram[(address + cpu.X + 1) & 0xFF];
     address = (hi << 8) | lo;
     cycles += 2;
-
-    log_indirect_x();
 }
 
 static inline void indirect_y(void) {
@@ -333,8 +348,6 @@ static inline void indirect_y(void) {
     if (is_diff_page(address, address - cpu.Y)) {
         operand = read(address);
     }
-
-    log_indirect_y();
 }
 
 static inline void indirect_y_write(void) {
@@ -345,27 +358,19 @@ static inline void indirect_y_write(void) {
     cycles += 2;
     operand = read(address);
     address = ((hi << 8) | lo) + cpu.Y;
-
-    log_indirect_y();
 }
 
 static inline void relative(void) {
     operand = fetch();
-
-    log_relative();
 }
 
 static inline void zero_page(void) {
     address = fetch();
     operand = read(address);
-
-    log_zero_page();
 }
 
 static inline void zero_page_write(void) {
     address = fetch();
-
-    log_zero_page();
 }
 
 static inline void zero_page_x(void) {
@@ -373,16 +378,12 @@ static inline void zero_page_x(void) {
     read(address);
     address = (address + cpu.X) & 0xFF;
     operand = read(address);
-
-    log_zero_page_x();
 }
 
 static inline void zero_page_x_write(void) {
     address = fetch();
     read(address);
     address = (address + cpu.X) & 0xFF;
-
-    log_zero_page_x();
 }
 
 static inline void zero_page_y(void) {
@@ -390,16 +391,12 @@ static inline void zero_page_y(void) {
     read(address);
     address = (address + cpu.Y) & 0xFF;
     operand = read(address);
-
-    log_zero_page_y();
 }
 
 static inline void zero_page_y_write(void) {
     address = fetch();
     read(address);
     address = (address + cpu.Y) & 0xFF;
-
-    log_zero_page_y();
 }
 
 /* -----------------------------------------------------------------
@@ -908,7 +905,8 @@ static inline void xaa(void) {
 #define SET_INSTRUCTION(opcode, name, oper, mode) \
     cpu_instruction_table [opcode] = oper;        \
     cpu_addressing_table  [opcode] = mode;        \
-    cpu_names_table       [opcode] = name;
+    cpu_names_table       [opcode] = name;        \
+    cpu_logging_table     [opcode] = log_##mode
 
 static inline void init_instruction_table(void) {
     /* Reset CPU tables. */
@@ -1330,8 +1328,7 @@ void cpu_init(void) {
 
     /* Initialize CPU status. */
     cpu = (CPU) { 0x0000, 0xFD, 0x00, 0x00, 0x00 };
-    /*cpu.PC = mem_read_16(RESET_VECTOR);*/
-    cpu.PC = 0xC000;
+    cpu.PC = mem_read_16(RESET_VECTOR);
 
     /* Clear RAM. */
     for (int i = 0; i < RAM_SIZE; i++) {
@@ -1343,44 +1340,20 @@ void cpu_init(void) {
     flg_set_I();
 }
 
-/*void cpu_cycle(int num_cycles) {
-    while (num_cycles > 0) {
-        if (wait_cycles == 0) {
-            if (nmi) {
-                interrupt(NMI_VECTOR);
-                nmi = false;
-            }
-            else {
-                extra_cycles = 0;
-                opcode = mem_read(cpu.PC);
-                LOG_CPU(9, "%04X  %02X", cpu.PC, opcode);
-                (*cpu_addressing_table[opcode])();
-                LOG_CPU(33, "A:%02X X:%02X Y:%02X P:%02X SP:%02X CYC:%3d SL:%d\n",
-                    cpu.A, cpu.X, cpu.Y, flg_get_status(false), cpu.S, ppu.dot,
-                    ppu.scanline);
-                (*cpu_instruction_table[opcode])();
-                wait_cycles = cpu_cycles_table[opcode] + extra_cycles;
-            }
-        }
-
-        wait_cycles--;
-        num_cycles--;
-        cycles++;
-    }
-}*/
-
 void cpu_execute(void) {
-    /* Fetch opcode. */
-    opcode = fetch();
+    if (nmi) {
+        interrupt(NMI_VECTOR);
+        nmi = false;
+    }
+    else {
+        #ifdef CPU_LOGGING
+        log_operation();
+        #endif
 
-    /* Fetch arguments. */
-    (*cpu_addressing_table[opcode])();
-
-    /* Execute opcode. */
-    /*LOG_CPU(33, "A:%02X X:%02X Y:%02X P:%02X SP:%02X CYC:%3d SL:%d\n", cpu.A, cpu.X, cpu.Y,
-        flg_get_status(false), cpu.S, ppu.dot, ppu.scanline);*/
-    log_status();
-    (*cpu_instruction_table[opcode])();
+        opcode = fetch();                   /* Fetch opcode. */
+        (*cpu_addressing_table[opcode])();  /* Fetch arguments. */
+        (*cpu_instruction_table[opcode])(); /* Execute operation. */
+    }
 }
 
 inline unsigned long long cpu_get_ticks(void) {
@@ -1388,7 +1361,6 @@ inline unsigned long long cpu_get_ticks(void) {
 }
 
 inline void cpu_suspend(int num_cycles) {
-    /* Edit ?? */
     cycles += num_cycles;
 }
 

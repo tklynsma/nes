@@ -140,8 +140,7 @@ int main(int argc, char *argv[]) {
 
         unsigned long long timestamp = cpu_get_ticks();
         cpu_execute();
-        ppu_cycle(3 * (cpu_get_ticks() - timestamp));
-        /* PPU catchup. */
+        ppu_catch_up();
 
         if (ppu.scanline == 241 && ppu.dot < 3) {
             draw_display(renderer);

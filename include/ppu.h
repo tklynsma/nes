@@ -19,7 +19,7 @@ void ppu_palette_write(word address, byte data);
 byte ppu_nametable_read (word address);
 void ppu_nametable_write(word address, byte data);
 
-void ppu_cycle(int num_cycles);
+void ppu_catch_up(void);
 
 byte ppu_get_pixel(int x, int y);
 
