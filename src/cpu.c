@@ -85,7 +85,7 @@ static inline word pop_address(void) {
 
 static inline void interrupt(word vector) {
     cycles += 2;
-    push_address(cpu.PC + 1);
+    push_address(cpu.PC);
     push(flg_get_status(false));
     cpu.PC = read_16(vector);
     flg_set_I();
@@ -488,7 +488,7 @@ static inline void bpl(void) {
 
 /* BRK - Force Interrupt. */
 static inline void brk(void) {
-    push_address(cpu.PC + 1);
+    push_address(cpu.PC);
     push(flg_get_status(true));
     cpu.PC = read_16(IRQ_VECTOR);
     flg_set_I();
