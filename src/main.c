@@ -5,20 +5,13 @@
 #include "../include/cpu.h"
 #include "../include/memory.h"
 #include "../include/nes.h"
+#include "../include/palette.h"
 #include "../include/ppu.h"
 #include "../include/ppu_internal.h"
 
 #define SCALE          2
 #define DISPLAY_WIDTH  256
 #define DISPLAY_HEIGHT 240
-
-/* Temporary color palette (4 colors). */
-const SDL_Color PALETTE[4] = {
-    (SDL_Color) {0xFF, 0xFF, 0xFF, 0xFF},
-    (SDL_Color) {0xBC, 0xBC, 0xBC, 0xFF},
-    (SDL_Color) {0x75, 0x75, 0x75, 0xFF},
-    (SDL_Color) {0x00, 0x00, 0x00, 0x00}
-};
 
 void setRenderDrawColor(SDL_Renderer* renderer, SDL_Color c) {
     SDL_SetRenderDrawColor(renderer, c.r, c.g, c.b, c.a);

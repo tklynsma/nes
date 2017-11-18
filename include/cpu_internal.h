@@ -3,6 +3,8 @@
 
 #include "common.h"
 
+#define RAM_SIZE 0x800
+
 typedef struct {
     word PC;             /* Program counter. */
     byte S;              /* Stack pointer. */

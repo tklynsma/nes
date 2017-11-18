@@ -1,8 +1,6 @@
 #ifndef CPU_H
 #define CPU_H
 
-#define RAM_SIZE 0x800
-
 #define NMI_VECTOR   0xFFFA
 #define RESET_VECTOR 0xFFFC
 #define IRQ_VECTOR   0xFFFE
