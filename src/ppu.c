@@ -328,7 +328,8 @@ static inline void fetch_attribute_byte(void) {
     word address = 0x23C0 | (ppu.v & 0x0C00);
     address = address | ((ppu.v >> 4) & 0x38);
     address = address | ((ppu.v >> 2) & 0x07);
-    ppu.attribute_byte = vrm_read(address);
+    byte shift = ((ppu.v >> 4) & 4) | (ppu.v & 0x2);
+    ppu.attribute_byte = (vrm_read(address) >> shift) & 0x3;
 }
 
 static inline void fetch_low_tile(void) {
@@ -345,8 +346,10 @@ static inline void fetch_high_tile(void) {
 
 /* Store the background tile data in the shift registers. */
 static inline void store_tile_data(void) {
+    ppu.attribute_register <<= 2;
     ppu.low_tile_register  |= ppu.low_tile;
     ppu.high_tile_register |= ppu.high_tile;
+    ppu.attribute_register |= ppu.attribute_byte;
 }
 
 /* Update the scanline and dot counters after every cycle. */
@@ -378,7 +381,8 @@ void render_dot(void) {
     else {
         byte bit_0 = (ppu.low_tile_register  << ppu.x) >> 15;
         byte bit_1 = (ppu.high_tile_register << ppu.x) >> 15;
-        display[x][y] = (bit_1 << 1) | bit_0;
+        byte palette_index = (ppu.attribute_register & 0xC) | (bit_1 << 1) | bit_0;
+        display[x][y] = vrm_read(0x3F00 | palette_index);
     }
 }
 

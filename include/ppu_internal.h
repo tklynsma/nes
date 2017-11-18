@@ -59,8 +59,9 @@ typedef struct {
     byte low_tile;                  /* The current tile low pattern being fetched. */
     byte high_tile;                 /* The current tile high pattern being fetched. */
 
-    word low_tile_register;         /* ... */
-    word high_tile_register;
+    word low_tile_register;         /* Low tile shift register. */
+    word high_tile_register;        /* High tile shift register. */
+    byte attribute_register;        /* Attribute shift register. */
 } PPU;
 
 extern PPU ppu;
