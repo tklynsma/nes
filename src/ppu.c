@@ -7,6 +7,9 @@
 #include "../include/ppu_internal.h"
 #include "../include/vram.h"
 
+#define SPRITE ppu.sprites[ppu.sprite_count]
+#define TRANSPARENT_PIXEL (Pixel) {0x00, 0x00, false};
+
 /* -----------------------------------------------------------------
  * PPU status.
  * -------------------------------------------------------------- */
@@ -39,6 +42,22 @@ static inline bool is_visible_line(void) {
 
 static inline bool is_render_line(void) {
     return ppu.scanline < 240;
+}
+
+static inline bool is_even_cycle(void) {
+    return ppu.dot % 2 == 0;
+}
+
+static inline bool is_odd_cycle(void) {
+    return ppu.dot % 2 == 1;
+}
+
+static inline bool is_visible_cycle(void) {
+    return ppu.dot > 0 && ppu.dot <= 256;
+}
+
+static inline bool y_in_range(int y) {
+    return ppu.scanline >= y && ppu.scanline < y + ppu.ctrl_sprite_size;
 }
 
 /* -----------------------------------------------------------------
@@ -101,7 +120,7 @@ static inline void increment_v(void) {
 static inline void write_ppu_ctrl(byte data) {
     ppu.ctrl_nmi             = data & 0x80;
     ppu.ctrl_master_slave    = data & 0x40;
-    ppu.ctrl_sprite_size     = data & 0x20;
+    ppu.ctrl_sprite_size     = data & 0x20 ? 16 : 8;
     ppu.ctrl_background_addr = data & 0x10 ? 0x1000 : 0x0000;
     ppu.ctrl_sprite_addr     = data & 0x08 ? 0x1000 : 0x0000;
     ppu.ctrl_increment       = data & 0x04 ? 32 : 1;
@@ -149,13 +168,24 @@ static inline void write_oam_address(byte data) {
 
 /* 0x2004: OAMDATA (read). */
 static inline byte read_oam_data() {
-    ppu.latch = ppu.oam[ppu.oam_addr];
-    return ppu.latch;
+    if (ppu.oam_addr % 4 == 2) {
+        /* The three unimplemented bits of each
+         * sprite's byte 2 always read back as 0. */
+        return ppu.latch = ppu.oam[ppu.oam_addr] & 0xE3;
+    }
+    else {
+        return ppu.latch = ppu.oam[ppu.oam_addr];
+    }
 }
 
 /* 0x2004: OAMDATA (get). */
 static inline byte get_oam_data() {
-    return ppu.oam[ppu.oam_addr];
+    if (ppu.oam_addr % 4 == 2) {
+        return ppu.oam[ppu.oam_addr] & 0xE3;
+    }
+    else {
+        return ppu.oam[ppu.oam_addr];
+    }
 }
 
 /* 0x2004: OAMDATA (write). */
@@ -353,7 +383,7 @@ static inline void store_tile_data(void) {
 }
 
 /* Update the scanline and dot counters after every cycle. */
-void ppu_tick(void) {
+static inline void ppu_tick(void) {
     ppu.dot++;
     if (ppu.dot > 340) {
         ppu.dot = 0;
@@ -371,45 +401,225 @@ void ppu_tick(void) {
     }
 }
 
-/* Render the current pixel using the stored tile data. */
-void render_dot(void) {
-    int x = ppu.dot - 1, y = ppu.scanline;
-
-    if (ppu.dot - 1 < 8 && !ppu.mask_background_L) {
-        display[x][y] = 0x00;
+/* Get the background pixel using the stored tile data. */
+static inline byte background_pixel(int x, int y) {
+    if (x < 8 && !ppu.mask_background_L) {
+        return 0x00;
     }
     else {
         byte bit_0 = (ppu.low_tile_register  << ppu.x) >> 15;
         byte bit_1 = (ppu.high_tile_register << ppu.x) >> 15;
-        byte palette_index = (ppu.attribute_register & 0xC) | (bit_1 << 1) | bit_0;
-        display[x][y] = vrm_read(0x3F00 | palette_index);
+        return (ppu.attribute_register & 0xC) | (bit_1 << 1) | bit_0;
+    }
+}
+
+/* Get the sprite pixel using the stored sprite data in secondary OAM. */
+static inline Pixel sprite_pixel(int x, int y) {
+    /* Check if we should render the current dot. */
+    if (x >= 8 || ppu.mask_sprites_L) {
+        for (int i = 0; i < ppu.sprite_count; i++) {
+            byte col = x - ppu.sprites[i].x;
+
+            /* Check if the sprite should be rendered at the current dot. */
+            if (ppu.sprites[i].visible && col >= 0 && col < 8) {
+                /* Check if the sprite should be flipped horizontally. */
+                if (!ppu.sprites[i].flip_h) {
+                    col = 7 - col;
+                }
+
+                byte bit_0 = (ppu.sprites[i].low_tile  >> col) & 0x01;
+                byte bit_1 = (ppu.sprites[i].high_tile >> col) & 0x01;
+                byte pixel = (bit_1 << 1) | bit_0;
+                byte palette = ppu.sprites[i].palette << 2;
+
+                return (Pixel) {pixel, palette, ppu.sprites[i].priority};
+            }
+        }
+    }
+
+    return TRANSPARENT_PIXEL;
+}
+
+/* Render the current pixel. */
+static inline void render_dot(void) {
+    int x = ppu.dot - 1, y = ppu.scanline;
+    Pixel sprite = sprite_pixel(x, y);
+
+    if (sprite.pixel == 0x00 || sprite.priority) {
+        display[x][y] = vrm_read(0x3F00 | background_pixel(x, y));
+    }
+    else {
+        display[x][y] = vrm_read(0x3F10 | sprite.palette | sprite.pixel);
+    }
+}
+
+/* Sprite evaluation occurs during visible scanlines (0-239) when rendering is on. */
+static inline void sprite_evaluation(void) {
+    /* Cycle 0: Reset secondary OAM address and the evaluation mode. */
+    /*if (ppu.dot == 0) {
+        ppu.n = 0;
+        ppu.m = 1;
+        ppu.soam_addr = 0;
+        ppu.evaluation_mode = 1;
+    }*/
+
+    /* Cycles 1-64: Secondary OAM is initialized to 0xFF. */
+    /*else if (ppu.dot <= 64) {
+        if (is_even_cycle()) {
+            ppu.secondary_oam[ppu.soam_addr++] = 0xFF;
+        }
+    }*/
+
+    /* Cycles 65-256: Sprite evaluation.
+     * - On odd cycles, data is read from (primary) OAM.
+     * - On even cycles, data is written to secondary OAM (unless secondary OAM
+     *   is full, in which case it will read the value in secondary OAM instead).
+     */
+    /*else if (ppu.dot <= 256) {*/
+        /* 0. Fetch the sprite data and go to 2. */
+        /*if (ppu.evaluation_mode == 0) {
+            if (is_odd_cycle()) {
+                ppu.oam_buffer = ppu.oam[4 * ppu.n + ppu.m++];
+            }
+            else {
+                ppu.secondary_oam[ppu.soam_addr++] = ppu.oam_buffer;*/
+                
+                /* If this was the last byte fetched for the sprite, go to 2. */
+                /*if (ppu.m >= 4) {
+                    ppu.m = 1;
+                    ppu.evaluation_mode = 2;
+                }
+            }
+        }*/
+
+        /* 1. Starting at n = 0, read a sprite's Y-coordinate, copying it to the next
+         *    open slot in secondary OAM (unless 8 sprites have been found, in which
+         *    case the write is ignored).
+         *    - 1a. If Y-coordinate is in range, copy remaining bytes of sprite data
+         *          into secondary OAM.
+         */
+        /*else if (ppu.evaluation_mode == 1) {
+            if (is_odd_cycle()) {
+                ppu.oam_buffer = ppu.oam[4 * ppu.n];
+            }
+            else {
+                ppu.secondary_oam[ppu.soam_addr] = ppu.oam_buffer;*/
+
+                /* If Y-coordinate is in range, copy remaining bytes of sprite data
+                 * into secondary OAM (go to 2). */
+                /*if (is_within_range(ppu.oam_buffer)) {
+                    ppu.soam_addr++;
+                    ppu.evaluation_mode = 0;
+                }
+
+                else {
+                    ppu.evaluation_mode = 2;
+                }
+            }
+        }*/
+
+        /* 2. Increment n.
+         *    - 2a. If n has overflowed back to zero (all 64 sprites evaluated), go to 4.
+         *    - 2b. If less than 8 sprites have been found, go to 1.
+         *    - 2c. If exactly 8 sprites have been found, disable writes to secondary OAM.
+         */
+        /*if (ppu.evaluation_mode == 2) {
+            if (is_odd_cycle()) {
+                ppu.oam_buffer = ppu.oam[...];
+                ppu.n++;
+            }
+            else {
+                ppu.secondary_oam[ppu.n] = ppu.oam_buffer;
+            }
+        }
+    }*/
+
+    /* Cycles 257-320: Sprite fetches (8 sprites total, 8 cycles per sprite). */
+    /*else if (ppu.dot <= 320) {
+
+    }*/
+}
+
+/* Fetch the sprite's low and high tile for the next scanline. */
+static inline void fetch_sprite_tiles(byte row) {
+    /* Check if the sprite should be flipped vertically. */
+    if (SPRITE.flip_v) {
+        row = ppu.ctrl_sprite_size - row - 1;
+    }
+
+    word address;   /* Sprite pattern address. */
+    if (ppu.ctrl_sprite_size == 8) {
+        address = ppu.ctrl_sprite_addr + 16 * SPRITE.tile + row;
+    }
+    else {
+        word bank = 0x1000 * (SPRITE.tile & 0x01);
+        /* Top half of the 8x16 sprite. */
+        if (row < 8) {
+            address = bank + 16 * SPRITE.tile + row;
+        }
+        /* Bottom half of the 8x16 sprite. */
+        else {
+            address = bank + 16 * (SPRITE.tile + 1) + (row - 8);
+        }
+    }
+
+    SPRITE.low_tile  = vrm_read(address);
+    SPRITE.high_tile = vrm_read(address + 8);
+}
+
+/* Fetch the sprite data for the next scanline. */
+static inline void quick_sprite_evaluation(void) {
+    /* Reset sprite count and sprite data. */
+    ppu.sprite_count = 0;
+    for (int i = 0; i < MAX_SPRITES; i++) {
+        ppu.sprites[i].visible = false;
+    }
+
+    for (int n = 0; n < OAM_SIZE && ppu.sprite_count < MAX_SPRITES; n+=4) {
+        /* Read a sprite's Y-coordinate. */
+        SPRITE.y = ppu.oam[n];
+
+        /* If the Y-coordinate is in range, copy the remaining bytes of sprite data */
+        if (y_in_range(ppu.oam[n])) {
+            byte row = ppu.scanline - SPRITE.y;
+
+            /* Only fetch data if the sprite is visible on the scanline. */
+            if (row >= 0 && row < ppu.ctrl_sprite_size) {
+                SPRITE.tile     = ppu.oam[n + 1];
+                SPRITE.palette  = ppu.oam[n + 2] & 0x03;
+                SPRITE.priority = ppu.oam[n + 2] & 0x20;
+                SPRITE.flip_h   = ppu.oam[n + 2] & 0x40;
+                SPRITE.flip_v   = ppu.oam[n + 2] & 0x80;
+                SPRITE.x        = ppu.oam[n + 3];
+                SPRITE.visible  = true;
+
+                fetch_sprite_tiles(row);
+            }
+
+            ppu.sprite_count++;
+        }
     }
 }
 
 /* Execute one PPU cycle. */
 void ppu_step(void) {
     if (is_rendering()) {
-        /* Pre-render scanline (261). */
+        /* Pre-render scanline (-1). */
         if (is_prerender_line()) {
             /* During dots 280 to 340 of the pre-render scanline: If rendering
-            * if enabled, the PPU copies all bits related to vertical position
-            * from t to v. */
+             * if enabled, the PPU copies all bits related to vertical position
+             * from t to v. */
             if (ppu.dot >= 280 && ppu.dot <= 340) {
                 copy_vertical();
             }
         }
 
-        /* Visible dots (1-256) in visible scanlines (0-239). */
-        if (is_visible_line() && ppu.dot > 0 && ppu.dot <= 256) {
-            render_dot();
-        }
-
-        /* Render scanlines (0-239, 261). */
+        /* Render scanlines (0-239, -1). */
         if (is_visible_line() || is_prerender_line()) {
             /* During dots 1 to 256 and dots 321 to 336: the data for each tile is
-            * fetched. Every 8 dots the horizontal position in v is incremented and
-            * the tile data is stored in the shift registers. */
-            if ((ppu.dot > 0 && ppu.dot < 257) || (ppu.dot > 320 && ppu.dot < 337)) {
+             * fetched. Every 8 dots the horizontal position in v is incremented and
+             * the tile data is stored in the shift registers. */
+            if ((ppu.dot > 0 && ppu.dot <= 256) || (ppu.dot > 320 && ppu.dot <= 336)) {
                 ppu.low_tile_register  <<= 1;
                 ppu.high_tile_register <<= 1;
 
@@ -423,8 +633,14 @@ void ppu_step(void) {
                 }
             }
 
+            /* OAMADDR is set to 0 during each of ticks 257-320 (the sprite tile
+             * loading interval) of the pre-render and visible scanlines. */
+            else if (ppu.dot > 256 && ppu.dot <= 320) {
+                ppu.oam_addr = 0x00;
+            }
+
             /* At dot 256 of each scanline: If rendering is enabled, the PPU
-            * increments the vertical position in v. */
+             * increments the vertical position in v. */
             if (ppu.dot == 256) {
                 increment_y();
             }
@@ -433,6 +649,19 @@ void ppu_step(void) {
             * copies all bits related to horizontal position from t to v. */
             else if (ppu.dot == 257) {
                 copy_horizontal();
+            }
+        }
+
+        /* Visible scanlines (0-239). */
+        if (is_visible_line()) {
+            /* Render visible dots (1-256) on visible scanlines. */
+            if (is_visible_cycle()) {
+                render_dot();
+            }
+
+            /* Evaluate sprites near the end (dot 257) of each visible line. */
+            else if (ppu.dot == 257) {
+                quick_sprite_evaluation();
             }
         }
     }
