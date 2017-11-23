@@ -14,7 +14,6 @@ typedef struct {
     byte tile;                      /* Sprite byte 1: Tile index number. */
     byte low_tile;                  /* Low tile data for the current scanline. */
     byte high_tile;                 /* High tile data for the current scanline. */
-    bool visible;                   /* Display the sprite. */
 
     /* Sprite byte 2: Attributes. */
     byte palette;                   /* Palette of sprite. */
@@ -72,6 +71,7 @@ typedef struct {
     /* PPU Rendering. */
     int scanline;                   /* [0, 261]: 262 scanlines per frame. */
     int dot;                        /* [0, 340]: 341 cycles per scanline. */
+    unsigned long long frame;       /* The current frame number. */
     bool odd_frame;                 /* The current frame is an odd frame. */
 
     /* Background rendering. */

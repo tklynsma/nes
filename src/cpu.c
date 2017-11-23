@@ -26,65 +26,9 @@ static byte operand;        /* Operand (8 bit) of the instruction. */
 static word address;        /* Operand (16 bit) of the instruction. */
 static byte lo, hi;         /* Temporary variables low/high byte. */
 
-static unsigned long long cycles; /* Total number of cycles run so far. */
+unsigned long long cycles;  /* Total number of cycles run so far. */
 
 static bool initialized_table = false;
-
-/* -----------------------------------------------------------------
- * Micro operations.
- * -------------------------------------------------------------- */
-
-#define fetch() mem_read(cpu.PC++); cycles++;
-#define fetch_dummy() mem_read(cpu.PC); cycles++;
-#define read(a) mem_read(a); cycles++;
-#define write(a, d) mem_write(a, d); cycles++;
-
-static inline word fetch_16(void) {
-    lo = fetch();
-    hi = fetch();
-    return (hi << 8) | lo;
-}
-
-static inline word read_16(word address) {
-    lo = read(address);
-    hi = read(address + 1);
-    return (hi << 8) | lo;
-}
-
-static inline void push(byte data) {
-    cpu.ram[0x100 | cpu.S--] = data;
-    cycles++;
-}
-
-static inline void push_address(word address) {
-    cpu.ram[0x100 | cpu.S--] = address >> 8;
-    cpu.ram[0x100 | cpu.S--] = address & 0xFF;
-    cycles += 2;
-}
-
-static inline byte pop(void) {
-    cycles++;
-    return cpu.ram[0x100 | ++cpu.S];
-}
-
-static inline word pop_address(void) {
-    cycles += 2;
-    lo = cpu.ram[0x100 | ++cpu.S];
-    hi = cpu.ram[0x100 | ++cpu.S];
-    return (hi << 8) | lo;
-}
-
-/* -----------------------------------------------------------------
- * Handle interrupt.
- * -------------------------------------------------------------- */
-
-static inline void interrupt(word vector) {
-    cycles += 2;
-    push_address(cpu.PC);
-    push(flg_get_status(false));
-    cpu.PC = read_16(vector);
-    flg_set_I();
-}
 
 /* -----------------------------------------------------------------
  * CPU addressing modes.

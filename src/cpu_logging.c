@@ -5,7 +5,6 @@
 #include "../include/cpu_internal.h"
 #include "../include/cpu_logging.h"
 #include "../include/log.h"
-#include "../include/memory.h"
 #include "../include/ppu_internal.h"
 
 #define LOG_INSTRUCTION_1() LOG_CPU(20, "%04X  %02X       %s",     \

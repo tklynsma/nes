@@ -22,6 +22,8 @@ static SDL_Renderer* renderer = NULL;
 
 static byte display[DISPLAY_WIDTH][DISPLAY_HEIGHT];
 
+static unsigned long long current_frame = 0;
+
 static bool initialize(void) {
     /* Initialize SDL. */
     if (SDL_Init(SDL_INIT_VIDEO) < 0) {
@@ -135,8 +137,9 @@ int main(int argc, char *argv[]) {
         cpu_execute();
         ppu_catch_up();
 
-        if (ppu.scanline == 241 && ppu.dot < 3) {
+        if (ppu.status_vblank && current_frame < ppu.frame) {
             draw_display(renderer);
+            current_frame = ppu.frame;
         }
     }
 

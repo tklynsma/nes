@@ -25,12 +25,12 @@ inline void flg_update_C(int result, Operation type) { C = result; C_type = type
 static byte Z;  /* Last result that affected the Z flag. */
 static byte N;  /* Last result that affected the N flag. */
 
-inline bool flg_is_Z   (void) { return !Z;       }
+inline bool flg_is_Z   (void) { return !Z; }
 inline bool flg_is_N   (void) { return N & 0x80; }
-inline void flg_set_Z  (void) { Z = 0x00;        }
-inline void flg_set_N  (void) { N = 0x80;        }
-inline void flg_clear_Z(void) { Z = 0x01;        }
-inline void flg_clear_N(void) { N = 0x00;        }
+inline void flg_set_Z  (void) { Z = 0x00; }
+inline void flg_set_N  (void) { N = 0x80; }
+inline void flg_clear_Z(void) { Z = 0x01; }
+inline void flg_clear_N(void) { N = 0x00; }
 
 inline void flg_update_Z (byte value) { Z = value; }
 inline void flg_update_N (byte value) { N = value; }

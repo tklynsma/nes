@@ -399,11 +399,8 @@ static inline void fetch_sprite_tiles(byte row) {
 
 /* Fetch the sprite data for the next scanline. */
 static inline void quick_sprite_evaluation(void) {
-    /* Reset sprite count and sprite data. */
+    /* Reset sprite count. */
     ppu.sprite_count = 0;
-    for (int i = 0; i < MAX_SPRITES; i++) {
-        ppu.sprites[i].visible = false;
-    }
 
     for (int n = 0; n < OAM_SIZE && ppu.sprite_count < MAX_SPRITES; n+=4) {
         /* Read a sprite's Y-coordinate. */
@@ -418,7 +415,6 @@ static inline void quick_sprite_evaluation(void) {
             SPRITE.flip_h   = ppu.oam[n + 2] & 0x40;
             SPRITE.flip_v   = ppu.oam[n + 2] & 0x80;
             SPRITE.x        = ppu.oam[n + 3];
-            SPRITE.visible  = true;
 
             fetch_sprite_tiles(row);
             ppu.sprite_count++;
@@ -446,7 +442,7 @@ static inline Pixel sprite_pixel(int x, int y) {
             byte col = x - ppu.sprites[i].x;
 
             /* Check if the sprite should be rendered at the current dot. */
-            if (ppu.sprites[i].visible && col >= 0 && col < 8) {
+            if (col >= 0 && col < 8) {
                 /* Check if the sprite should be flipped horizontally. */
                 if (!ppu.sprites[i].flip_h) {
                     col = 7 - col;
@@ -493,6 +489,8 @@ static inline void ppu_tick(void) {
             if (ppu.odd_frame && is_rendering()) {
                 ppu.dot = 1;
             }
+
+            ppu.frame++;
         }
     }
 }
@@ -581,7 +579,7 @@ void ppu_step(void) {
 }
 
 /* Catch up PPU cycle to current CPU cycle. */
-void ppu_catch_up(void) {
+inline void ppu_catch_up(void) {
     unsigned long long cpu_ticks = cpu_get_ticks();
     for (int i = 0; i < 3 * (cpu_ticks - ppu_ticks); i++) {
         ppu_step();
@@ -619,6 +617,7 @@ void ppu_init(void) {
 
     ppu.dot      =  0;
     ppu.scanline = -1;
+    ppu.frame    =  0;
 }
 
 void ppu_reset(void) {
