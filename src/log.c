@@ -20,13 +20,13 @@ void put_message(const char *type, const char *message, va_list args) {
         put_timestamp(file);
         char type_[16];
         sprintf(type_, "%s: ", type);
-        fputs(type_, file);
+        fputs(type_, file); printf(type_);
 
         char message_[256];
         vsnprintf(message_, 256, message, args);
 
-        fputs(message_, file);
-        fputs("\n", file);
+        fputs(message_, file); printf(message_);
+        fputs("\n", file); printf("\n");
         fclose(file);
     }
     else {
@@ -54,7 +54,6 @@ void log_error(const char *message, ...) {
     put_message("ERROR", message, args);
     va_end(args);
 
-    printf("Error occurred, exiting...\n");
     return exit(EXIT_FAILURE);
 }
 

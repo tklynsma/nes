@@ -1,7 +1,6 @@
 #ifndef CARTRIDGE_H
 #define CARTRIDGE_H
 
-#include <stdbool.h>
 #include "common.h"
 
 #define INES_HEADER_SIZE  16

@@ -1,6 +1,7 @@
 #include "../include/cpu.h"
 #include "../include/memory.h"
 #include "../include/mmc.h"
+#include "../include/nes.h"
 #include "../include/ppu.h"
 
 inline byte mem_read(word address) {
@@ -15,6 +16,12 @@ inline byte mem_read(word address) {
     }
     else if (address == 0x4014) {
         return ppu_dma_read();
+    }
+    else if (address == 0x4016) {
+        return nes_controller1_read();
+    }
+    else if (address == 0x4017) {
+        return nes_controller2_read();
     }
 
     /* 0x4020 - 0xFFFF: Cartridge space. */
@@ -41,6 +48,12 @@ inline byte mem_get(word address) {
     else if (address == 0x4014) {
         return ppu_dma_read();
     }
+    else if (address == 0x4016) {
+        return nes_controller1_get();
+    }
+    else if (address == 0x4017) {
+        return nes_controller2_get();
+    }
 
     /* 0x4020 - 0xFFFF: Cartridge space. */
     else if (address >= 0x4020) {
@@ -64,6 +77,12 @@ inline void mem_write(word address, byte data) {
     }
     else if (address == 0x4014) {
         ppu_dma_write(data);
+    }
+    else if (address == 0x4016) {
+        nes_controller1_write(data);
+    }
+    else if (address == 0x4017) {
+        nes_controller2_write(data);
     }
 
     /* 0x4020 - 0xFFFF: Cartridge space. */

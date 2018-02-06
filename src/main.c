@@ -2,6 +2,7 @@
 #include <stdbool.h>
 #include <stdio.h>
 #include <stdlib.h>
+#include "../include/controller.h"
 #include "../include/cpu.h"
 #include "../include/memory.h"
 #include "../include/nes.h"
@@ -91,6 +92,35 @@ static void draw_display(SDL_Renderer* renderer) {
     SDL_RenderPresent(renderer);
 }
 
+static void handle_event(SDL_Event* event) {
+    switch (event->type) {
+        case SDL_KEYDOWN:
+            switch (event->key.keysym.sym) {
+                case SDLK_p:        nes_controller1_set(BUTTON_A,       true);  break;
+                case SDLK_o:        nes_controller1_set(BUTTON_B,       true);  break;
+                case SDLK_i:        nes_controller1_set(BUTTON_SELECT,  true);  break;
+                case SDLK_ESCAPE:   nes_controller1_set(BUTTON_START,   true);  break;
+                case SDLK_UP:       nes_controller1_set(BUTTON_UP,      true);  break;
+                case SDLK_DOWN:     nes_controller1_set(BUTTON_DOWN,    true);  break;
+                case SDLK_LEFT:     nes_controller1_set(BUTTON_LEFT,    true);  break;
+                case SDLK_RIGHT:    nes_controller1_set(BUTTON_RIGHT,   true);  break;
+            } break;
+        case SDL_KEYUP:
+            switch (event->key.keysym.sym) {
+                case SDLK_p:        nes_controller1_set(BUTTON_A,       false); break;
+                case SDLK_o:        nes_controller1_set(BUTTON_B,       false); break;
+                case SDLK_i:        nes_controller1_set(BUTTON_SELECT,  false); break;
+                case SDLK_ESCAPE:   nes_controller1_set(BUTTON_START,   false); break;
+                case SDLK_UP:       nes_controller1_set(BUTTON_UP,      false); break;
+                case SDLK_DOWN:     nes_controller1_set(BUTTON_DOWN,    false); break;
+                case SDLK_LEFT:     nes_controller1_set(BUTTON_LEFT,    false); break;
+                case SDLK_RIGHT:    nes_controller1_set(BUTTON_RIGHT,   false); break;
+            } break;
+    }
+}
+
+
+
 static void close(void) {
     /* Delete window and renderer. */
     SDL_DestroyRenderer(renderer);
@@ -123,6 +153,7 @@ int main(int argc, char *argv[]) {
     }
 
     cpu_init();
+    nes_init();
 
     SDL_Event event;
     while (1) {
@@ -131,9 +162,10 @@ int main(int argc, char *argv[]) {
                 close();
                 return 0;
             }
+
+            handle_event(&event);
         }
 
-        unsigned long long timestamp = cpu_get_ticks();
         cpu_execute();
         ppu_catch_up();
 

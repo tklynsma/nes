@@ -6,7 +6,6 @@
 #define OAM_SIZE       256
 #define MAX_SPRITES    8
 
-#include <stdbool.h>
 #include "common.h"
 
 typedef struct {

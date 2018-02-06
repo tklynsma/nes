@@ -389,7 +389,7 @@ static inline void fetch_sprite_tiles(byte row) {
         }
         /* Bottom half of the 8x16 sprite. */
         else {
-            address = bank + 16 * (SPRITE.tile + 1) + (row - 8);
+            address = bank + 16 * SPRITE.tile + row + 8;
         }
     }
 
@@ -451,9 +451,11 @@ static inline Pixel sprite_pixel(int x, int y) {
                 byte bit_0 = (ppu.sprites[i].low_tile  >> col) & 0x01;
                 byte bit_1 = (ppu.sprites[i].high_tile >> col) & 0x01;
                 byte pixel = (bit_1 << 1) | bit_0;
-                byte palette = ppu.sprites[i].palette << 2;
 
-                return (Pixel) {pixel, palette, ppu.sprites[i].priority};
+                if (pixel != 0x00) {
+                    byte palette = ppu.sprites[i].palette << 2;
+                    return (Pixel) {pixel, palette, ppu.sprites[i].priority};
+                }
             }
         }
     }

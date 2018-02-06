@@ -7,7 +7,7 @@ include_directories(${SDL2_INCLUDE_DIRS})
 
 set(CMAKE_C_FLAGS_DEBUG "-g")
 
-set(SOURCE_FILES src/main.c src/cartridge.c src/cpu.c src/cpu_flags.c src/cpu_internal.c src/cpu_logging.c src/log.c src/mapper000.c src/mapper001.c src/memory.c src/mmc.c src/nes.c src/ppu.c src/vram.c)
+set(SOURCE_FILES src/main.c src/cartridge.c src/controller.c src/cpu.c src/cpu_flags.c src/cpu_internal.c src/cpu_logging.c src/log.c src/mapper000.c src/mapper001.c src/memory.c src/mmc.c src/nes.c src/ppu.c src/vram.c)
 add_executable(nes_emulator ${SOURCE_FILES})
 target_link_libraries(nes_emulator ${SDL2_LIBRARIES})
 

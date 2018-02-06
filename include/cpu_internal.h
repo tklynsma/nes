@@ -8,21 +8,21 @@
 
 /* Micro operations. */
 
-#define fetch() mem_read(cpu.PC++); cycles++;
-#define fetch_dummy() mem_read(cpu.PC); cycles++;
-#define read(a) mem_read(a); cycles++;
-#define write(a, d) mem_write(a, d); cycles++;
+#define cpu_fetch() mem_read(cpu.PC++); cycles++;
+#define cpu_fetch_dummy() mem_read(cpu.PC); cycles++;
+#define cpu_read(a) mem_read(a); cycles++;
+#define cpu_write(a, d) mem_write(a, d); cycles++;
 
-word fetch_16(void);
-word read_16(word address);
-void push(byte data);
-void push_address(word address);
-byte pop(void);
-word pop_address(void);
+word cpu_fetch_16(void);
+word cpu_read_16(word address);
+void cpu_push(byte data);
+void cpu_push_address(word address);
+byte cpu_pop(void);
+word cpu_pop_address(void);
 
 /* Handle interrupts. */
 
-void interrupt(word vector);
+void cpu_interrupt(word vector);
 
 /* CPU status. */
 

@@ -39,100 +39,100 @@ static inline bool is_diff_page(word address1, word address2) {
 }
 
 static inline void absolute(void) {
-    address = fetch_16();
-    operand = read(address);
+    address = cpu_fetch_16();
+    operand = cpu_read(address);
 }
 
 static inline void absolute_write(void) {
-    address = fetch_16();
+    address = cpu_fetch_16();
 }
 
 static inline void absolute_jump(void) {
-    lo = fetch();
+    lo = cpu_fetch();
 }
 
 static inline void absolute_x(void) {
-    lo = fetch(); hi = fetch();
+    lo = cpu_fetch(); hi = cpu_fetch();
     address = (hi << 8) | ((lo + cpu.X) & 0xFF);
-    operand = read(address);
+    operand = cpu_read(address);
 
     address = ((hi << 8) | lo) + cpu.X;
     if (is_diff_page(address, address - cpu.X)) {
-        operand = read(address);
+        operand = cpu_read(address);
     }
 }
 
 static inline void absolute_x_modify(void) {
-    lo = fetch(); hi = fetch();
+    lo = cpu_fetch(); hi = cpu_fetch();
     address = (hi << 8) | ((lo + cpu.X) & 0xFF);
-    operand = read(address);
+    operand = cpu_read(address);
     address = ((hi << 8) | lo) + cpu.X;
-    operand = read(address);
+    operand = cpu_read(address);
 }
 
 static inline void absolute_x_write(void) {
-    lo = fetch(); hi = fetch();
+    lo = cpu_fetch(); hi = cpu_fetch();
     address = (hi << 8) | ((lo + cpu.X) & 0xFF);
-    operand = read(address);
+    operand = cpu_read(address);
     address = ((hi << 8) | lo) + cpu.X;
 }
 
 static inline void absolute_y(void) {
-    lo = fetch(); hi = fetch();
+    lo = cpu_fetch(); hi = cpu_fetch();
     address = (hi << 8) | ((lo + cpu.Y) & 0xFF);
-    operand = read(address);
+    operand = cpu_read(address);
 
     address = ((hi << 8) | lo) + cpu.Y;
     if (is_diff_page(address, address - cpu.Y)) {
-        operand = read(address);
+        operand = cpu_read(address);
     }
 }
 
 static inline void absolute_y_write(void) {
-    lo = fetch(); hi = fetch();
+    lo = cpu_fetch(); hi = cpu_fetch();
     address = (hi << 8) | ((lo + cpu.Y) & 0xFF);
-    operand = read(address);
+    operand = cpu_read(address);
     address = ((hi << 8) | lo) + cpu.Y;
 }
 
 static inline void accumulator(void) {
-    fetch_dummy(); /* Read next instruction byte and throw it away. */
+    cpu_fetch_dummy(); /* Read next instruction byte and throw it away. */
 }
 
 static inline void immediate(void) {
-    operand = fetch();
+    operand = cpu_fetch();
 }
 
 static inline void implied(void) {
-    fetch_dummy(); /* Read next instruction byte and throw it away. */
+    cpu_fetch_dummy(); /* Read next instruction byte and throw it away. */
 }
 
 static inline void indirect(void) {
-    address = fetch_16();
+    address = cpu_fetch_16();
 
     if (lo == 0xFF) {
-        lo = read(address);
-        hi = read(address - 0xFF);
+        lo = cpu_read(address);
+        hi = cpu_read(address - 0xFF);
         address = (hi << 8) | lo;
     }
     else {
-        address = read_16(address);
+        address = cpu_read_16(address);
     }
 }
 
 static inline void indirect_x(void) {
-    address = fetch();
-    read(address);
+    address = cpu_fetch();
+    cpu_read(address);
     lo = cpu.ram[(address + cpu.X) & 0xFF];
     hi = cpu.ram[(address + cpu.X + 1) & 0xFF];
     address = (hi << 8) | lo;
     cycles += 2;
-    operand = read(address);
+    operand = cpu_read(address);
 }
 
 static inline void indirect_x_write(void) {
-    address = fetch();
-    read(address);
+    address = cpu_fetch();
+    cpu_read(address);
     lo = cpu.ram[(address + cpu.X) & 0xFF];
     hi = cpu.ram[(address + cpu.X + 1) & 0xFF];
     address = (hi << 8) | lo;
@@ -140,65 +140,65 @@ static inline void indirect_x_write(void) {
 }
 
 static inline void indirect_y(void) {
-    address = fetch();
+    address = cpu_fetch();
     lo = cpu.ram[address];
     hi = cpu.ram[(address + 1) & 0xFF];
     address = (hi << 8) | ((lo + cpu.Y) & 0xFF);
     cycles += 2;
-    operand = read(address);
+    operand = cpu_read(address);
 
     address = ((hi << 8) | lo) + cpu.Y;
     if (is_diff_page(address, address - cpu.Y)) {
-        operand = read(address);
+        operand = cpu_read(address);
     }
 }
 
 static inline void indirect_y_write(void) {
-    address = fetch();
+    address = cpu_fetch();
     lo = cpu.ram[address];
     hi = cpu.ram[(address + 1) & 0xFF];
     address = (hi << 8) | ((lo + cpu.Y) & 0xFF);
     cycles += 2;
-    operand = read(address);
+    operand = cpu_read(address);
     address = ((hi << 8) | lo) + cpu.Y;
 }
 
 static inline void relative(void) {
-    operand = fetch();
+    operand = cpu_fetch();
 }
 
 static inline void zero_page(void) {
-    address = fetch();
-    operand = read(address);
+    address = cpu_fetch();
+    operand = cpu_read(address);
 }
 
 static inline void zero_page_write(void) {
-    address = fetch();
+    address = cpu_fetch();
 }
 
 static inline void zero_page_x(void) {
-    address = fetch();
-    read(address);
+    address = cpu_fetch();
+    cpu_read(address);
     address = (address + cpu.X) & 0xFF;
-    operand = read(address);
+    operand = cpu_read(address);
 }
 
 static inline void zero_page_x_write(void) {
-    address = fetch();
-    read(address);
+    address = cpu_fetch();
+    cpu_read(address);
     address = (address + cpu.X) & 0xFF;
 }
 
 static inline void zero_page_y(void) {
-    address = fetch();
-    read(address);
+    address = cpu_fetch();
+    cpu_read(address);
     address = (address + cpu.Y) & 0xFF;
-    operand = read(address);
+    operand = cpu_read(address);
 }
 
 static inline void zero_page_y_write(void) {
-    address = fetch();
-    read(address);
+    address = cpu_fetch();
+    cpu_read(address);
     address = (address + cpu.Y) & 0xFF;
 }
 
@@ -247,8 +247,8 @@ static inline void asl_a(void) {
 /* ASL - Arithmetic Shift Left (Memory). */
 static inline void asl_m(void) {
     flg_update_C (operand, ROL);
-    write(address, operand);
-    write(address, operand <<= 1);
+    cpu_write(address, operand);
+    cpu_write(address, operand <<= 1);
     flg_update_ZN(operand);
 }
 
@@ -291,9 +291,9 @@ static inline void bpl(void) {
 
 /* BRK - Force Interrupt. */
 static inline void brk(void) {
-    push_address(cpu.PC);
-    push(flg_get_status(true));
-    cpu.PC = read_16(IRQ_VECTOR);
+    cpu_push_address(cpu.PC);
+    cpu_push(flg_get_status(true));
+    cpu.PC = cpu_read_16(IRQ_VECTOR);
     flg_set_I();
 }
 
@@ -347,8 +347,8 @@ static inline void cpy(void) {
 
 /* DEC - Decrement Memory. */
 static inline void dec(void) {
-    write(address, operand);
-    write(address, --operand);
+    cpu_write(address, operand);
+    cpu_write(address, --operand);
     flg_update_ZN(operand);
 }
 
@@ -369,8 +369,8 @@ static inline void eor(void) {
 
 /* INC - Increment Memory. */
 static inline void inc(void) {
-    write(address, operand);
-    write(address, ++operand);
+    cpu_write(address, operand);
+    cpu_write(address, ++operand);
     flg_update_ZN(operand);
 }
 
@@ -386,7 +386,7 @@ static inline void iny(void) {
 
 /* JMP - Jump, Absolute. */
 static inline void jmp_absolute(void) {
-    hi = fetch();
+    hi = cpu_fetch();
     cpu.PC = (hi << 8) | lo;
 }
 
@@ -398,8 +398,8 @@ static inline void jmp_indirect(void) {
 /* JSR - Jump to Subroutine. */
 static inline void jsr(void) {
     cycles++;
-    push_address(cpu.PC);
-    hi = fetch();
+    cpu_push_address(cpu.PC);
+    hi = cpu_fetch();
     cpu.PC = (hi << 8) | lo;
 }
 
@@ -427,8 +427,8 @@ static inline void lsr_a(void) {
 /* LSR - Logical Shift Right (Memory). */
 static inline void lsr_m(void) {
     flg_update_C (operand, ROR);
-    write(address, operand);
-    write(address, operand >>= 1);
+    cpu_write(address, operand);
+    cpu_write(address, operand >>= 1);
     flg_update_ZN(operand);
 }
 
@@ -442,24 +442,24 @@ static inline void ora(void) {
 
 /* PHA - Push Accumulator. */
 static inline void pha(void) {
-    push(cpu.A);
+    cpu_push(cpu.A);
 }
 
 /* PHP - Push Processor Status. */
 static inline void php(void) {
-    push(flg_get_status(true));
+    cpu_push(flg_get_status(true));
 }
 
 /* PLA - Pull Accumulator. */
 static inline void pla(void) {
     cycles++; /* Increment S cycle. */
-    flg_update_ZN(cpu.A = pop());
+    flg_update_ZN(cpu.A = cpu_pop());
 }
 
 /* PLP - Pull Processor Status. */
 static inline void plp(void) {
     cycles++; /* Increment S cycle. */
-    flg_set_status(pop());
+    flg_set_status(cpu_pop());
 }
 
 /* ROL - Rotate Left (Accumulator). */
@@ -472,9 +472,9 @@ static inline void rol_a(void) {
 /* ROL - Rotate Left (Memory). */
 static inline void rol_m(void) {
     flg_update_C (operand, ROL);
-    write(address, operand);
+    cpu_write(address, operand);
     operand = (operand << 1) | flg_is_C();
-    write(address, operand);
+    cpu_write(address, operand);
     flg_update_ZN(operand);
 }
 
@@ -490,23 +490,23 @@ static inline void ror_a(void) {
 static inline void ror_m(void) {
     bool carry = flg_is_C();
     flg_update_C (operand, ROR);
-    write(address, operand);
+    cpu_write(address, operand);
     operand = (operand >> 1) | (carry << 7);
-    write(address, operand);
+    cpu_write(address, operand);
     flg_update_ZN(operand);
 }
 
 /* RTI - Return from Interrupt. */
 static inline void rti(void) {
     cycles++; /* Increment S cycle. */
-    flg_set_status(pop());
-    cpu.PC = pop_address();
+    flg_set_status(cpu_pop());
+    cpu.PC = cpu_pop_address();
 }
 
 /* RTS - Return from Subroutine. */
 static inline void rts(void) {
     cycles++; /* Increment S cycle. */
-    cpu.PC = pop_address() + 1;
+    cpu.PC = cpu_pop_address() + 1;
     cycles++; /* Increment PC cycle. */
 }
 
@@ -537,17 +537,17 @@ static inline void sei(void) {
 
 /* STA - Store Accumulator. */
 static inline void sta(void) {
-    write(address, cpu.A);
+    cpu_write(address, cpu.A);
 }
 
 /* STX - Store X Register. */
 static inline void stx(void) {
-    write(address, cpu.X);
+    cpu_write(address, cpu.X);
 }
 
 /* STY - Store Y Register. */
 static inline void sty(void) {
-    write(address, cpu.Y);
+    cpu_write(address, cpu.Y);
 }
 
 /* TAX - Transfer Accumulator to X. */
@@ -620,8 +620,8 @@ static inline void axs(void) {
 
 /* DCP - Decrement and compare. */
 static inline void dcp(void) {
-    write(address, operand);
-    write(address, --operand);
+    cpu_write(address, operand);
+    cpu_write(address, --operand);
     flg_update_C (cpu.A - operand, CMP);
     flg_update_ZN(cpu.A - operand);
 }
@@ -638,8 +638,8 @@ static inline void hlt(void) {
 
 /* ISB - Increment and Subtract. */
 static inline void isb(void) {
-    write(address, operand);
-    write(address, ++operand);
+    cpu_write(address, operand);
+    cpu_write(address, ++operand);
 
     operand ^= 0xFF;
     int result = cpu.A + operand + flg_is_C();
@@ -653,9 +653,9 @@ static inline void isb(void) {
 static inline void rla(void) {
     bool carry = flg_is_C();
     flg_update_C (operand, ROL);
-    write(address, operand);
+    cpu_write(address, operand);
     operand = (operand << 1) | carry;
-    write(address, operand);
+    cpu_write(address, operand);
     flg_update_ZN(cpu.A &= operand);
 }
 
@@ -663,9 +663,9 @@ static inline void rla(void) {
 static inline void rra(void) {
     bool carry = flg_is_C();
     flg_update_C (operand, ROR);
-    write(address, operand);
+    cpu_write(address, operand);
     operand = (operand >> 1) | (carry << 7);
-    write(address, operand);
+    cpu_write(address, operand);
 
     int result = cpu.A + operand + flg_is_C();
     flg_update_ZN(result);
@@ -676,22 +676,22 @@ static inline void rra(void) {
 
 /* SAX - Store Accumulator AND X. */
 static inline void sax(void) {
-    write(address, cpu.A & cpu.X);
+    cpu_write(address, cpu.A & cpu.X);
 }
 
 /* SLO - Shift Left and Inclusive OR. */
 static inline void slo(void) {
     flg_update_C (operand, ROL);
-    write(address, operand);
-    write(address, operand <<= 1);
+    cpu_write(address, operand);
+    cpu_write(address, operand <<= 1);
     flg_update_ZN(cpu.A |= operand);
 }
 
 /* SRE - Shift Right and Exclusive OR. */
 static inline void sre(void) {
     flg_update_C (operand, ROR);
-    write(address, operand);
-    write(address, operand >>= 1);
+    cpu_write(address, operand);
+    cpu_write(address, operand >>= 1);
     flg_update_ZN(cpu.A ^= operand);
 }
 
@@ -1145,7 +1145,7 @@ void cpu_init(void) {
 
 void cpu_execute(void) {
     if (nmi) {
-        interrupt(NMI_VECTOR);
+        cpu_interrupt(NMI_VECTOR);
         nmi = false;
     }
     else {
@@ -1153,7 +1153,7 @@ void cpu_execute(void) {
         cpu_log_operation();
         #endif
 
-        opcode = fetch();                   /* Fetch opcode. */
+        opcode = cpu_fetch();               /* Fetch opcode. */
         (*cpu_addressing_table[opcode])();  /* Fetch arguments. */
         (*cpu_instruction_table[opcode])(); /* Execute operation. */
     }

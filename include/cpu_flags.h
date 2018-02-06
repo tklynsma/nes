@@ -1,7 +1,6 @@
 #ifndef CPU_FLAGS_H
 #define CPU_FLAGS_H
 
-#include <stdbool.h>
 #include "common.h"
 
 typedef enum { ADC, BIT, CMP, ROL, ROR, SBC } Operation;
